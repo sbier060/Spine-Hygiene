@@ -78,6 +78,40 @@ describe("MonitoringController", () => {
     expect(result.nextIntervalMs).toBeNull();
   });
 
+  it("applies a manual position mark and accrues duration for it", () => {
+    const c = new MonitoringController();
+    // Warm up presence with a few frames.
+    for (let i = 0; i < 4; i++) {
+      c.ingest({
+        nowMs: i * 1000,
+        landmarks: uprightPose(),
+        baseline,
+        paused: false,
+        inferenceMs: 5,
+      });
+    }
+    const event = c.markPosition("sitting", 4000);
+    expect(event?.source).toBe("manual");
+    expect(event?.next).toBe("sitting");
+
+    const r1 = c.ingest({
+      nowMs: 5000,
+      landmarks: uprightPose(),
+      baseline,
+      paused: false,
+      inferenceMs: 5,
+    });
+    expect(r1.position).toBe("sitting");
+    const r2 = c.ingest({
+      nowMs: 6000,
+      landmarks: uprightPose(),
+      baseline,
+      paused: false,
+      inferenceMs: 5,
+    });
+    expect(r2.durations.totalSittingMs).toBeGreaterThan(0);
+  });
+
   it("runs a full episode: warm-up → sustained hunch notifies once → recovery", () => {
     // Fast config so the episode completes in a handful of synthetic frames.
     const fast: PostureMachineConfig = {

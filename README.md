@@ -4,15 +4,17 @@ A quiet macOS **menu-bar wellness utility** that watches your posture — locall
 privately — and nudges you when you've been leaning forward or sitting too long.
 It's a wellness tool, **not a medical device**.
 
-> **Phases 1–2 done.** Phase 1: detection sandbox (shell, tray, camera, MediaPipe
+> **Phases 1–3 done.** Phase 1: detection sandbox (shell, tray, camera, MediaPipe
 > landmarks, developer overlay, sitting calibration, live raw + smoothed posture
-> scores). Phase 2: the posture monitor — a timed **state machine** (drift →
-> poor-candidate → poor-confirmed → cooldown), **adaptive inference** (frequency
-> scales with what's happening; camera released when paused), **away detection**,
-> calm **native notifications**, **menu-bar status** with **pause/resume**, and
-> **settings** (sensitivity, persistence) that tune the monitor. Sitting/standing
-> tracking, SQLite history, and the dashboard arrive in Phases 3–5 (see
-> `docs/PRODUCT_SPEC.md`).
+> scores). Phase 2: the posture monitor — timed **state machine** (drift →
+> poor-candidate → poor-confirmed → cooldown), **adaptive inference** (camera
+> released when paused), **away detection**, calm **native notifications**,
+> **menu-bar status** with **pause/resume**, and **settings** that tune the
+> monitor. Phase 3: **position tracking** — optional standing calibration, a
+> confidence-based **sitting/standing classifier**, **duration tracking**,
+> **sitting/standing reminders**, and manual "I'm sitting / I'm standing"
+> controls (window + tray). SQLite history and the dashboard arrive in Phases 4–5
+> (see `docs/PRODUCT_SPEC.md`).
 
 ## What it does
 

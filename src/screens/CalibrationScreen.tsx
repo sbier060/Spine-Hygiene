@@ -1,7 +1,9 @@
 /**
- * Sitting calibration. The user sits in the posture they want to keep; we collect
- * ~10 s of valid frames and build a personalized median baseline. Low-confidence
- * frames are rejected, so poor lighting simply slows the progress bar rather than
+ * Calibration for sitting (required) and standing (optional). The user holds the
+ * posture; we collect ~10 s of valid frames and build a personalized median
+ * baseline. Sitting calibration also builds the posture-scoring baseline; both
+ * build a position baseline (absolute frame features) for sit/stand classification.
+ * Low-confidence frames are rejected, so poor lighting slows the bar rather than
  * poisoning the baseline.
  */
 import { useEffect, useRef, useState } from "react";
@@ -11,6 +13,8 @@ import {
   CalibrationCollector,
   type CalibrationMeta,
 } from "../posture/calibrationService";
+import { PositionCalibrationCollector } from "../position/positionCalibration";
+import { extractPositionFeatures } from "../position/positionFeatures";
 import type { CameraInfo } from "../hooks/usePoseLoop";
 
 /** Valid frames to gather (~10 s at the sandbox 2 fps cadence). */
@@ -19,40 +23,59 @@ const TARGET_SAMPLES = 20;
 export function CalibrationScreen({
   videoRef,
   cameraInfoRef,
+  positionType,
 }: {
   videoRef: React.RefObject<HTMLVideoElement>;
   cameraInfoRef: React.MutableRefObject<CameraInfo | null>;
+  positionType: "sitting" | "standing";
 }): JSX.Element {
   const { state, dispatch } = useAppContext();
-  const collectorRef = useRef(new CalibrationCollector());
+  const postureRef = useRef(new CalibrationCollector());
+  const positionRef = useRef(new PositionCalibrationCollector());
   const [collecting, setCollecting] = useState(false);
   const [count, setCount] = useState(0);
 
   const reading = state.latest;
+  const isStanding = positionType === "standing";
 
   useEffect(() => {
     if (!collecting || !reading) return;
-    const collector = collectorRef.current;
-    collector.add(reading.features, reading.quality);
-    setCount(collector.validSampleCount);
+    const posture = postureRef.current;
+    const position = positionRef.current;
+    posture.add(reading.features, reading.quality);
+    position.add(
+      extractPositionFeatures(reading.landmarks),
+      reading.quality,
+    );
+    setCount(posture.validSampleCount);
 
-    if (collector.validSampleCount >= TARGET_SAMPLES) {
+    if (posture.validSampleCount >= TARGET_SAMPLES) {
       setCollecting(false);
       const info = cameraInfoRef.current;
-      const meta: CalibrationMeta = {
-        positionType: "sitting",
-        cameraWidth: info?.width ?? 640,
-        cameraHeight: info?.height ?? 360,
-        cameraDeviceId: info?.deviceId ?? null,
-        createdAt: Date.now(),
-      };
-      dispatch({ type: "set_baseline", baseline: collector.build(meta) });
-      dispatch({ type: "set_phase", phase: "sandbox" });
+      if (!isStanding) {
+        const meta: CalibrationMeta = {
+          positionType: "sitting",
+          cameraWidth: info?.width ?? 640,
+          cameraHeight: info?.height ?? 360,
+          cameraDeviceId: info?.deviceId ?? null,
+          createdAt: Date.now(),
+        };
+        dispatch({ type: "set_baseline", baseline: posture.build(meta) });
+      }
+      dispatch({
+        type: "set_position_baseline",
+        baseline: position.build(positionType),
+      });
+      dispatch({
+        type: "set_phase",
+        phase: isStanding ? "sandbox" : "calibrate_standing",
+      });
     }
-  }, [collecting, reading, cameraInfoRef, dispatch]);
+  }, [collecting, reading, cameraInfoRef, dispatch, isStanding, positionType]);
 
   const start = (): void => {
-    collectorRef.current.reset();
+    postureRef.current.reset();
+    positionRef.current.reset();
     setCount(0);
     setCollecting(true);
   };
@@ -61,8 +84,14 @@ export function CalibrationScreen({
 
   return (
     <section className="screen calibration">
-      <h1>Calibrate your sitting posture</h1>
-      <p>Sit the way you want to hold yourself, then start calibration.</p>
+      <h1>
+        {isStanding ? "Calibrate standing (optional)" : "Calibrate your sitting posture"}
+      </h1>
+      <p>
+        {isStanding
+          ? "Stand the way you normally would at your desk, then start. You can skip this."
+          : "Sit the way you want to hold yourself, then start calibration."}
+      </p>
       <CameraPreview videoRef={videoRef} landmarks={reading?.landmarks ?? []} />
 
       {collecting ? (
@@ -78,9 +107,19 @@ export function CalibrationScreen({
           </p>
         </>
       ) : (
-        <button className="primary" onClick={start}>
-          Start calibration
-        </button>
+        <div className="pause-controls">
+          <button className="primary" onClick={start}>
+            Start calibration
+          </button>
+          {isStanding && (
+            <button
+              className="ghost"
+              onClick={() => dispatch({ type: "set_phase", phase: "sandbox" })}
+            >
+              Skip
+            </button>
+          )}
+        </div>
       )}
     </section>
   );

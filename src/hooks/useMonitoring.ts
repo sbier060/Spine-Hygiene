@@ -18,7 +18,11 @@ import type { PostureMachineConfig } from "../posture/postureStateMachine";
 import { DEFAULT_POSTURE_MACHINE_CONFIG } from "../posture/postureStateMachine";
 import type { ScoreOptions } from "../posture/postureScorer";
 import { NotificationService } from "../notifications/notificationService";
-import { postureNotification } from "../notifications/interventionRules";
+import {
+  postureNotification,
+  sittingNotification,
+  standingNotification,
+} from "../notifications/interventionRules";
 import {
   postureLabel,
   positionLabel,
@@ -27,19 +31,28 @@ import {
 } from "../tray/trayState";
 import { updateTrayStatus } from "../tray/trayCommands";
 import type { CalibrationBaseline, PostureState } from "../posture/postureTypes";
+import type { PositionBaseline } from "../position/positionCalibration";
+import type { PositionState } from "../position/positionTypes";
 import { isSpineIqError } from "../utils/errors";
-import type { AppAction } from "../app/appState";
+import type { AppAction, ManualMark } from "../app/appState";
 
 export interface MonitoringOptions {
   readonly machineConfig?: PostureMachineConfig;
   readonly scoreOptions?: ScoreOptions;
 }
 
+export interface MonitoringBaselines {
+  readonly posture: CalibrationBaseline | null;
+  readonly positionSitting: PositionBaseline | null;
+  readonly positionStanding: PositionBaseline | null;
+}
+
 export function useMonitoring(
   videoRef: React.RefObject<HTMLVideoElement>,
   running: boolean,
   paused: boolean,
-  baseline: CalibrationBaseline | null,
+  baselines: MonitoringBaselines,
+  manualMark: ManualMark | null,
   dispatch: Dispatch<AppAction>,
   options: MonitoringOptions = {},
 ): void {
@@ -52,8 +65,8 @@ export function useMonitoring(
   const lastStateRef = useRef<PostureState>("good");
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
-  const baselineRef = useRef<CalibrationBaseline | null>(baseline);
-  baselineRef.current = baseline;
+  const baselinesRef = useRef<MonitoringBaselines>(baselines);
+  baselinesRef.current = baselines;
   const configRef = useRef<PostureMachineConfig>(
     options.machineConfig ?? DEFAULT_POSTURE_MACHINE_CONFIG,
   );
@@ -91,15 +104,18 @@ export function useMonitoring(
       const now = performance.now();
 
       if (pausedRef.current) {
+        const b = baselinesRef.current;
         const result = controller.ingest({
           nowMs: now,
           landmarks: [],
-          baseline: baselineRef.current,
+          baseline: b.posture,
+          sittingPositionBaseline: b.positionSitting,
+          standingPositionBaseline: b.positionStanding,
           paused: true,
           inferenceMs: 0,
         });
         dispatch({ type: "set_monitor", monitor: result });
-        void syncTray(result.state, now);
+        void syncTray(result.state, result.position, now);
         void scheduleNext(null);
         return;
       }
@@ -142,38 +158,57 @@ export function useMonitoring(
         }
       }
 
+      const b = baselinesRef.current;
       const result = controller.ingest({
         nowMs: now,
         landmarks,
-        baseline: baselineRef.current,
+        baseline: b.posture,
+        sittingPositionBaseline: b.positionSitting,
+        standingPositionBaseline: b.positionStanding,
         paused: false,
         inferenceMs,
       });
       dispatch({ type: "set_monitor", monitor: result });
 
+      const gate = {
+        paused: false,
+        away: false,
+        onboarding: false,
+        screenLocked: false,
+        inCooldown: false,
+      };
       if (result.notify) {
         rotationRef.current += 1;
-        void notifier.notify(postureNotification(rotationRef.current), {
-          paused: false,
-          away: false,
-          onboarding: false,
-          screenLocked: false,
-          inCooldown: false,
-        });
+        void notifier.notify(postureNotification(rotationRef.current), gate);
+      }
+      if (result.positionReminder === "sitting") {
+        void notifier.notify(
+          sittingNotification(Math.round(result.durations.currentMs / 60_000)),
+          gate,
+        );
+      } else if (result.positionReminder === "standing") {
+        void notifier.notify(
+          standingNotification(Math.round(result.durations.currentMs / 60_000)),
+          gate,
+        );
       }
 
-      void syncTray(result.state, now);
+      void syncTray(result.state, result.position, now);
       void scheduleNext(result.nextIntervalMs);
     }
 
-    async function syncTray(state: PostureState, now: number): Promise<void> {
+    async function syncTray(
+      state: PostureState,
+      position: PositionState,
+      now: number,
+    ): Promise<void> {
       if (state !== lastStateRef.current) {
         lastStateRef.current = state;
         stateEnteredMsRef.current = now;
       }
       await updateTrayStatus({
         postureLabel: postureLabel(state),
-        positionLabel: positionLabel("unknown"),
+        positionLabel: positionLabel(position),
         durationLabel: formatDuration(now - stateEnteredMsRef.current),
         tone: pausedRef.current ? "paused" : trayTone(state),
       });
@@ -200,4 +235,10 @@ export function useMonitoring(
     const video = videoRef.current;
     if (video) video.srcObject = null;
   }, [running, videoRef]);
+
+  // Apply manual sitting/standing corrections immediately.
+  useEffect(() => {
+    if (!manualMark) return;
+    controllerRef.current?.markPosition(manualMark.position, performance.now());
+  }, [manualMark]);
 }

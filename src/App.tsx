@@ -23,6 +23,7 @@ function AppShell(): JSX.Element {
   const running =
     state.phase === "placement" ||
     state.phase === "calibrate" ||
+    state.phase === "calibrate_standing" ||
     state.phase === "sandbox";
 
   const cameraInfoRef = usePoseLoop(
@@ -54,7 +55,12 @@ function AppShell(): JSX.Element {
     videoRef,
     monitoring,
     paused,
-    state.baseline,
+    {
+      posture: state.baseline,
+      positionSitting: state.positionBaselineSitting,
+      positionStanding: state.positionBaselineStanding,
+    },
+    state.manualMark,
     dispatch,
     monitoringOptionsRef.current,
   );
@@ -91,8 +97,10 @@ function AppShell(): JSX.Element {
           dispatch({ type: "set_phase", phase: "monitor" });
           break;
         case "mark_sitting":
+          dispatch({ type: "mark_position", position: "sitting" });
+          break;
         case "mark_standing":
-          // Position marking lands in Phase 3.
+          dispatch({ type: "mark_position", position: "standing" });
           break;
       }
     }).then((fn) => {

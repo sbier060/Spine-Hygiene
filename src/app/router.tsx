@@ -24,7 +24,19 @@ export function AppRouter({
       return <OnboardingScreen videoRef={videoRef} />;
     case "calibrate":
       return (
-        <CalibrationScreen videoRef={videoRef} cameraInfoRef={cameraInfoRef} />
+        <CalibrationScreen
+          videoRef={videoRef}
+          cameraInfoRef={cameraInfoRef}
+          positionType="sitting"
+        />
+      );
+    case "calibrate_standing":
+      return (
+        <CalibrationScreen
+          videoRef={videoRef}
+          cameraInfoRef={cameraInfoRef}
+          positionType="standing"
+        />
       );
     case "sandbox":
       return <DevSandboxScreen videoRef={videoRef} />;

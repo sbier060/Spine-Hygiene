@@ -39,6 +39,7 @@ onto a canvas separately; they draw nothing to disk.
 | `pose/`     | `landmarkTypes`, `featureExtractor`, `poseQuality`, `smoothing`, `poseLandmarker` (facade) | pure except the facade |
 | `posture/`  | `postureTypes`, `postureThresholds`, `postureScorer`, `calibrationService`, `postureStateMachine` | pure |
 | `monitoring/`| `monitoringController`, `adaptiveInference`, `presenceDetector`, `monitoringConfig`, `monitoringTypes` | pure |
+| `position/` | `positionFeatures`, `positionCalibration`, `positionClassifier`, `positionStateMachine`, `durationTracker`, `positionTypes` | pure |
 | `notifications/`| `notificationTypes`, `interventionRules`, `notificationService` (Tauri) | pure except the service |
 | `storage/`  | `settingsRepository` (localStorage now, SQLite in Phase 4)              | pure (injectable store) |
 | `camera/`   | `cameraTypes`, `cameraPermissions`, `cameraManager`, `frameSampler`     | side-effectful (browser APIs) |
@@ -79,6 +80,22 @@ decision logic (state machine, scheduler, presence, scoring) is pure and tested.
   detection, native notifications (guarded, behavioral copy), menu-bar status +
   pause/resume via the tray, settings (sensitivity/persistence) that tune the
   monitor, autostart/single-instance/window-state plugins.
-- **Phases 3–5 (not yet):** standing calibration + sitting/standing classifier +
-  duration reminders (3), SQLite history + dashboard (4), optimization (5). See
+- **Phase 3 (done):** optional standing calibration, confidence-based
+  sitting/standing classifier (absolute frame features), position state machine
+  (sustained switch, prefer-previous, manual override), duration tracking
+  (current/longest/changes, away excluded), and sitting/standing duration
+  reminders with cooldown. Manual "I'm sitting / I'm standing" from the window
+  and the tray.
+- **Phases 4–5 (not yet):** SQLite history + dashboard (4), optimization (5). See
   `docs/PRODUCT_SPEC.md`.
+
+### Position tracking (Phase 3)
+
+Posture and position run in parallel inside `MonitoringController`. Position uses
+**absolute** frame features (`positionFeatures`) — shoulder/head height, face
+size — because normalized posture features are distance-invariant and can't tell
+sitting from standing. The classifier is deliberately conservative: it returns
+`unknown` unless one calibrated baseline is clearly closer. The position state
+machine requires a sustained classification before switching and prefers the
+previous state when uncertain; manual corrections apply immediately. Away/unknown
+time never counts as sitting or standing.

@@ -5,7 +5,7 @@
  * developer mode — the live scheduler mode, score, and inference time.
  */
 import { useAppContext } from "../app/AppProvider";
-import { postureLabel } from "../tray/trayState";
+import { postureLabel, positionLabel, formatDuration } from "../tray/trayState";
 
 const PAUSE_OPTIONS = [15, 30, 60] as const;
 
@@ -43,7 +43,28 @@ export function MonitorScreen(): JSX.Element {
 
       <div className="meta-row">
         <span>{paused ? "Paused" : "Active"}</span>
-        {monitor && <span>Confidence: {fmt(monitor.confidence)}</span>}
+        {monitor && (
+          <span>
+            {positionLabel((monitor.position) ?? "unknown")} ·{" "}
+            {formatDuration(monitor.durations.currentMs)}
+          </span>
+        )}
+      </div>
+
+      {monitor && (
+        <div className="meta-row">
+          <span>Today sitting: {formatDuration(monitor.durations.totalSittingMs)}</span>
+          <span>standing: {formatDuration(monitor.durations.totalStandingMs)}</span>
+        </div>
+      )}
+
+      <div className="pause-controls">
+        <button onClick={() => dispatch({ type: "mark_position", position: "sitting" })}>
+          I’m sitting
+        </button>
+        <button onClick={() => dispatch({ type: "mark_position", position: "standing" })}>
+          I’m standing
+        </button>
       </div>
 
       <div className="pause-controls">
