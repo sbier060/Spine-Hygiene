@@ -9,15 +9,24 @@ anywhere Node runs.
 
 - **Node.js** ≥ 18 and **npm**
 - **Rust** (stable) — install via <https://rustup.rs>
-- **Apple Command Line Tools**:
+- **Apple Command Line Tools** — first check whether you already have them (git,
+  Homebrew, and Node-gyp all pull them in, so you may):
+
+  ```sh
+  xcode-select -p    # prints /Library/Developer/CommandLineTools if installed → skip the next step
+  ```
+
+  Only if that prints nothing / errors:
 
   ```sh
   xcode-select --install
   ```
 
-  This installs Apple's compiler command-line tools (clang, etc.) that Rust needs
-  to link a macOS binary. **It does not require using the Xcode IDE** — you never
-  open Xcode. There is no Apple Developer Program membership and no App Store step.
+  This installs Apple's compiler command-line tools (clang, linker, macOS SDK)
+  that Rust needs to link a macOS binary. It is a small standalone package — **not
+  the Xcode IDE** (you never open Xcode, no App Store, no Apple Developer Program).
+  If you happen to have full Xcode installed, point the toolchain at the CLT with
+  `sudo xcode-select --switch /Library/Developer/CommandLineTools`.
 
 - An editor: **Cursor, VS Code**, or any other. (Xcode is *not* a prerequisite.)
 

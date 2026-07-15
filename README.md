@@ -49,9 +49,10 @@ camera and MediaPipe sit behind small seams. See
 
 - Node.js and npm
 - Rust (via <https://rustup.rs>)
-- Apple Command Line Tools: `xcode-select --install` — this installs Apple's
-  compiler command-line tools and **does not require using the Xcode IDE**, an
-  Apple Developer Program membership, or App Store submission.
+- Apple Command Line Tools — check first with `xcode-select -p` (if it prints a
+  path you already have them; skip). Otherwise `xcode-select --install`. This is
+  the small standalone compiler/linker package and **does not require the Xcode
+  IDE**, an Apple Developer Program membership, or App Store submission.
 - An editor: Cursor, VS Code, or another. (Xcode is not required.)
 
 ## Installation
