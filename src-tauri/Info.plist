@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Merged into the macOS app bundle by Tauri. NSCameraUsageDescription is REQUIRED
+  for getUserMedia to work inside the WKWebView — without it macOS silently blocks
+  the camera. LSUIElement makes the app a menu-bar (accessory) app.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>Spine-IQ uses your camera locally to estimate posture. Images are never uploaded, recorded, or saved.</string>
+  <key>LSUIElement</key>
+  <true/>
+</dict>
+</plist>

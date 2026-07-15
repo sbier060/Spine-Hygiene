@@ -1,0 +1,27 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+*.local
+
+# Rust / Tauri
+src-tauri/target
+src-tauri/gen
+
+# MediaPipe runtime assets are large; download them locally (see docs/DEVELOPMENT.md).
+# They are NOT committed to keep the repo lean. The app expects them at runtime.
+public/wasm/*
+public/models/*.task
+!public/wasm/.gitkeep
+!public/models/.gitkeep
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Test coverage
+coverage
