@@ -37,15 +37,29 @@ onto a canvas separately; they draw nothing to disk.
 | Area        | Modules                                                                 | Purity |
 | ----------- | ----------------------------------------------------------------------- | ------ |
 | `pose/`     | `landmarkTypes`, `featureExtractor`, `poseQuality`, `smoothing`, `poseLandmarker` (facade) | pure except the facade |
-| `posture/`  | `postureTypes`, `postureThresholds`, `postureScorer`, `calibrationService` | pure |
+| `posture/`  | `postureTypes`, `postureThresholds`, `postureScorer`, `calibrationService`, `postureStateMachine` | pure |
+| `monitoring/`| `monitoringController`, `adaptiveInference`, `presenceDetector`, `monitoringConfig`, `monitoringTypes` | pure |
+| `notifications/`| `notificationTypes`, `interventionRules`, `notificationService` (Tauri) | pure except the service |
+| `storage/`  | `settingsRepository` (localStorage now, SQLite in Phase 4)              | pure (injectable store) |
 | `camera/`   | `cameraTypes`, `cameraPermissions`, `cameraManager`, `frameSampler`     | side-effectful (browser APIs) |
 | `workers/`  | `poseWorker`                                                            | worker |
+| `tray/`     | `trayState` (pure mapping), `trayCommands` (Tauri bridge)              | mixed |
 | `app/`      | `appState` (reducer), `AppProvider`, `router`                          | state/UI |
-| `hooks/`    | `usePoseLoop` (ties the pipeline together)                             | effectful |
+| `hooks/`    | `usePoseLoop` (sandbox), `useMonitoring` (adaptive background monitor)  | effectful |
 | `components/`| `CameraPreview`, `LandmarkOverlay`, `PlacementFeedback`               | UI |
-| `screens/`  | `OnboardingScreen`, `CalibrationScreen`, `DevSandboxScreen`            | UI |
+| `screens/`  | `OnboardingScreen`, `CalibrationScreen`, `DevSandboxScreen`, `MonitorScreen` | UI |
 | `utils/`    | `errors` (typed `SpineIqError`)                                        | pure |
 | `src-tauri/`| `lib.rs`, `main.rs`, `tray.rs`, `app_lifecycle.rs`, `commands.rs`      | Rust |
+
+## Monitoring loop (Phase 2)
+
+`useMonitoring` runs an **adaptive** loop: each tick captures one frame, and
+`MonitoringController.ingest()` returns the smoothed score, posture state, whether
+to notify, and the delay until the next inference. The loop reschedules itself
+from that delay — frequent while drifting/poor, sparse when stable, a 5 s poll
+when away, and it releases the camera entirely when paused. Notifications and tray
+updates are side effects the hook performs on the controller's outputs; all the
+decision logic (state machine, scheduler, presence, scoring) is pure and tested.
 
 ## Design rules honored
 
@@ -59,8 +73,12 @@ onto a canvas separately; they draw nothing to disk.
 
 ## Phase status
 
-Phase 1 (this build): shell + tray + camera + MediaPipe + overlay + sitting
-calibration + live features/scores + unit tests. Phases 2–5 (state machine,
-adaptive inference, away detection, notifications, position tracking, SQLite,
-dashboard, optimization) are scaffolded for but not yet implemented — see
-`docs/PRODUCT_SPEC.md`.
+- **Phase 1 (done):** shell + tray + camera + MediaPipe + overlay + sitting
+  calibration + live features/scores + unit tests.
+- **Phase 2 (done):** posture state machine, adaptive inference, presence/away
+  detection, native notifications (guarded, behavioral copy), menu-bar status +
+  pause/resume via the tray, settings (sensitivity/persistence) that tune the
+  monitor, autostart/single-instance/window-state plugins.
+- **Phases 3–5 (not yet):** standing calibration + sitting/standing classifier +
+  duration reminders (3), SQLite history + dashboard (4), optimization (5). See
+  `docs/PRODUCT_SPEC.md`.

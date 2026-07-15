@@ -3,16 +3,23 @@
  * renders the phase router. The loop runs once the user reaches placement and
  * keeps the camera + model alive across the remaining onboarding steps.
  */
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { AppProvider, useAppContext } from "./app/AppProvider";
 import { AppRouter } from "./app/router";
 import { usePoseLoop } from "./hooks/usePoseLoop";
+import { useMonitoring } from "./hooks/useMonitoring";
+import { listenTrayCommands } from "./tray/trayCommands";
+import { SettingsRepository } from "./storage/settingsRepository";
+import {
+  machineConfigFromSettings,
+  scoreOptionsFromSettings,
+} from "./monitoring/monitoringConfig";
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useAppContext();
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // The loop needs the camera during placement, calibration, and the sandbox.
+  // The sandbox loop needs the camera during placement, calibration, and sandbox.
   const running =
     state.phase === "placement" ||
     state.phase === "calibrate" ||
@@ -24,6 +31,77 @@ function AppShell(): JSX.Element {
     state.baseline,
     dispatch,
   );
+
+  // The adaptive background monitor runs during the monitor phase. Its tuning
+  // (sensitivity, poor-posture persistence) comes from saved settings.
+  const settingsRef = useRef<SettingsRepository | null>(null);
+  settingsRef.current ??= new SettingsRepository();
+  const monitoringOptionsRef = useRef<{
+    machineConfig: ReturnType<typeof machineConfigFromSettings>;
+    scoreOptions: ReturnType<typeof scoreOptionsFromSettings>;
+  } | null>(null);
+  if (!monitoringOptionsRef.current) {
+    const settings = settingsRef.current.load();
+    monitoringOptionsRef.current = {
+      machineConfig: machineConfigFromSettings(settings),
+      scoreOptions: scoreOptionsFromSettings(settings),
+    };
+  }
+
+  const monitoring = state.phase === "monitor";
+  const paused = state.monitoringStatus.kind === "paused";
+  useMonitoring(
+    videoRef,
+    monitoring,
+    paused,
+    state.baseline,
+    dispatch,
+    monitoringOptionsRef.current,
+  );
+
+  // Auto-resume when a timed pause elapses.
+  useEffect(() => {
+    if (state.monitoringStatus.kind !== "paused") return;
+    const untilMs = state.monitoringStatus.untilMs;
+    if (untilMs === null) return;
+    const remaining = untilMs - Date.now();
+    if (remaining <= 0) {
+      dispatch({ type: "resume_monitoring" });
+      return;
+    }
+    const t = setTimeout(() => dispatch({ type: "resume_monitoring" }), remaining);
+    return () => clearTimeout(t);
+  }, [state.monitoringStatus, dispatch]);
+
+  // Handle native tray menu commands (pause/resume/open dashboard).
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    void listenTrayCommands((command) => {
+      switch (command.kind) {
+        case "pause":
+          dispatch({
+            type: "pause_monitoring",
+            untilMs: Date.now() + command.minutes * 60_000,
+          });
+          break;
+        case "resume":
+          dispatch({ type: "resume_monitoring" });
+          break;
+        case "open_dashboard":
+          dispatch({ type: "set_phase", phase: "monitor" });
+          break;
+        case "mark_sitting":
+        case "mark_standing":
+          // Position marking lands in Phase 3.
+          break;
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [dispatch]);
 
   return (
     <main className="app">

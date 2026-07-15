@@ -15,3 +15,15 @@ pub fn get_app_version(app: tauri::AppHandle) -> String {
 pub fn open_dashboard(app: tauri::AppHandle) {
     app_lifecycle::show_main_window(&app);
 }
+
+#[tauri::command]
+pub fn update_tray_status(
+    app: tauri::AppHandle,
+    posture: String,
+    position: String,
+    duration: String,
+    tone: String,
+) -> Result<(), String> {
+    crate::tray::update_tray_status(&app, &posture, &position, &duration, &tone)
+        .map_err(|e| e.to_string())
+}

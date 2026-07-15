@@ -7,6 +7,21 @@ import type { ScoredFeatureKey } from "../pose/featureExtractor";
 /** Coarse posture bands derived from the continuous score. */
 export type PostureBand = "good" | "drifting" | "poor_candidate";
 
+/**
+ * Full posture monitoring state (Phase 2 state machine). Distinct from the
+ * instantaneous `PostureBand`: it layers time (persistence, cooldown, away) and
+ * confidence/pause handling on top of the raw band.
+ */
+export type PostureState =
+  | "good"
+  | "drifting"
+  | "poor_candidate"
+  | "poor_confirmed"
+  | "cooldown"
+  | "low_confidence"
+  | "away"
+  | "paused";
+
 /** Per-feature baseline: the calibrated center and its natural spread. */
 export interface FeatureBaseline {
   /** Median of the calibrated samples for this feature. */

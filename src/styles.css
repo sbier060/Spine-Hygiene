@@ -246,3 +246,19 @@ button.ghost {
   color: var(--muted);
   font-style: italic;
 }
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pause-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.monitor .band {
+  font-size: 18px;
+  padding: 14px;
+}

@@ -40,12 +40,21 @@ export function DevSandboxScreen({
     <section className="screen sandbox">
       <header className="sandbox-header">
         <h1>Detection sandbox</h1>
-        <button
-          className="ghost"
-          onClick={() => dispatch({ type: "set_phase", phase: "calibrate" })}
-        >
-          Recalibrate
-        </button>
+        <div className="header-actions">
+          <button
+            className="ghost"
+            onClick={() => dispatch({ type: "set_phase", phase: "calibrate" })}
+          >
+            Recalibrate
+          </button>
+          <button
+            className="primary"
+            disabled={!state.baseline}
+            onClick={() => dispatch({ type: "start_monitoring" })}
+          >
+            Start monitoring
+          </button>
+        </div>
       </header>
 
       <div className="sandbox-grid">
