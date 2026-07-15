@@ -4,18 +4,20 @@ A quiet macOS **menu-bar wellness utility** that watches your posture — locall
 privately — and nudges you when you've been leaning forward or sitting too long.
 It's a wellness tool, **not a medical device**.
 
-> **Phases 1–4 done.** Phase 1: detection sandbox. Phase 2: the posture monitor —
-> timed **state machine** (drift → poor-candidate → poor-confirmed → cooldown),
-> **adaptive inference** (camera released when paused), **away detection**, calm
-> **native notifications**, **menu-bar status** with **pause/resume**, and
-> **settings** that tune the monitor. Phase 3: **position tracking** — optional
-> standing calibration, a confidence-based **sitting/standing classifier**,
-> **duration tracking**, **sitting/standing reminders**, and manual "I'm sitting /
-> I'm standing". Phase 4: **history** — local **SQLite** persistence (derived
+> **All five MVP phases done.** Phase 1: detection sandbox. Phase 2: the posture
+> monitor — timed **state machine** (drift → poor-candidate → poor-confirmed →
+> cooldown), **adaptive inference** (camera released when paused), **away
+> detection**, calm **native notifications**, **menu-bar status** with
+> **pause/resume**, and **settings** that tune the monitor. Phase 3: **position
+> tracking** — optional standing calibration, a confidence-based **sitting/standing
+> classifier**, **duration tracking**, **sitting/standing reminders**, and manual
+> "I'm sitting / I'm standing". Phase 4: **history** — local **SQLite** (derived
 > summaries only, never frames), a **dashboard** (today's sitting/standing/away,
 > longest sessions, reminder count, posture consistency), a position-change
-> **timeline**, and **delete/export** controls. Phase 5 (optimization) remains
-> (see `docs/PRODUCT_SPEC.md`).
+> **timeline**, and **delete/export**. Phase 5: **optimization** — rolling
+> performance instrumentation (developer mode) and camera-lifecycle hardening; see
+> [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) for budgets + a macOS profiling
+> checklist. On-device CPU/RAM/battery numbers are measured on the Mac.
 
 ## What it does
 

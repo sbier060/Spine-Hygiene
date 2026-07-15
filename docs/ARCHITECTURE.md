@@ -38,7 +38,7 @@ onto a canvas separately; they draw nothing to disk.
 | ----------- | ----------------------------------------------------------------------- | ------ |
 | `pose/`     | `landmarkTypes`, `featureExtractor`, `poseQuality`, `smoothing`, `poseLandmarker` (facade) | pure except the facade |
 | `posture/`  | `postureTypes`, `postureThresholds`, `postureScorer`, `calibrationService`, `postureStateMachine` | pure |
-| `monitoring/`| `monitoringController`, `adaptiveInference`, `presenceDetector`, `monitoringConfig`, `monitoringTypes` | pure |
+| `monitoring/`| `monitoringController`, `adaptiveInference`, `presenceDetector`, `monitoringConfig`, `performanceInstrumentation`, `monitoringTypes` | pure |
 | `position/` | `positionFeatures`, `positionCalibration`, `positionClassifier`, `positionStateMachine`, `durationTracker`, `positionTypes` | pure |
 | `notifications/`| `notificationTypes`, `interventionRules`, `notificationService` (Tauri) | pure except the service |
 | `storage/`  | `settingsRepository` (localStorage); `schema`, `database`, `session/event/calibration` repositories, `sessionAggregator`, `dashboardMetrics`, `historyStore` (SQLite) | pure logic + injectable DB |
@@ -91,8 +91,14 @@ decision logic (state machine, scheduler, presence, scoring) is pure and tested.
   aggregator flushed ~once/min + at session end, a dashboard (today's sitting/
   standing/away, longest sessions, reminder count, posture consistency), a
   position-change timeline, and delete/export controls.
-- **Phase 5 (not yet):** optimization (CPU/RAM/battery/camera lifecycle). See
-  `docs/PRODUCT_SPEC.md`.
+- **Phase 5 (done):** performance instrumentation (rolling averages of inference
+  time, inferences/min, rejected frames, avg score, scheduler mode, resolution —
+  shown in developer mode), camera-lifecycle hardening, and an on-device profiling
+  checklist (`docs/PERFORMANCE.md`). On-device CPU/RAM/battery measurement is done
+  on the Mac.
+
+**All five MVP phases are implemented.** See `docs/PERFORMANCE.md` for budgets and
+profiling, and `docs/PRODUCT_SPEC.md` for the definition of done.
 
 ### History (Phase 4)
 

@@ -130,6 +130,29 @@ export function MonitorScreen(): JSX.Element {
               <td>Present</td>
               <td>{monitor.present ? "yes" : "no"}</td>
             </tr>
+            <tr>
+              <td>Avg inference</td>
+              <td>{fmt(monitor.perf.avgInferenceMs, 1)} ms</td>
+            </tr>
+            <tr>
+              <td>Inferences / min</td>
+              <td>{fmt(monitor.perf.inferencesPerMinute, 0)}</td>
+            </tr>
+            <tr>
+              <td>Rejected frames</td>
+              <td>
+                {monitor.perf.rejectedFrames} (
+                {fmt(monitor.perf.rejectedRatio * 100, 0)}%)
+              </td>
+            </tr>
+            <tr>
+              <td>Avg posture score</td>
+              <td>{fmt(monitor.perf.avgPostureScore)}</td>
+            </tr>
+            <tr>
+              <td>Camera resolution</td>
+              <td>{monitor.perf.cameraResolution ?? "—"}</td>
+            </tr>
           </tbody>
         </table>
       )}

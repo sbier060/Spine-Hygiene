@@ -25,6 +25,10 @@ import {
   type AdaptiveIntervals,
 } from "./adaptiveInference";
 import { modeForState, type InferenceMode } from "./monitoringTypes";
+import {
+  PerformanceMonitor,
+  type PerfSnapshot,
+} from "./performanceInstrumentation";
 import { extractPositionFeatures } from "../position/positionFeatures";
 import type { PositionBaseline } from "../position/positionCalibration";
 import {
@@ -78,6 +82,8 @@ export interface MonitoringResult {
   readonly positionReminder: ReminderKind | null;
   /** Set when the position changed this frame (for persistence). */
   readonly positionEvent: PositionEvent | null;
+  /** Rolling performance stats (developer mode). */
+  readonly perf: PerfSnapshot;
 }
 
 export interface MonitoringDeps {
@@ -100,6 +106,7 @@ export class MonitoringController {
   private readonly positionMachine: PositionStateMachine;
   private readonly duration: DurationTracker;
   private readonly classifyOptions: ClassifyOptions;
+  private readonly perf = new PerformanceMonitor();
 
   constructor(deps: MonitoringDeps = {}) {
     this.machine = new PostureStateMachine(
@@ -164,6 +171,16 @@ export class MonitoringController {
     );
 
     const mode = modeForState(step.state, paused);
+    this.perf.setMode(mode);
+    if (!paused) {
+      this.perf.record({
+        nowMs,
+        inferenceMs,
+        usable: canClassify,
+        score: rawScore,
+      });
+    }
+
     return {
       state: step.state,
       mode,
@@ -180,7 +197,13 @@ export class MonitoringController {
       durations: durationUpdate.snapshot,
       positionReminder: durationUpdate.reminder,
       positionEvent: positionStep.event ?? null,
+      perf: this.perf.snapshot(nowMs),
     };
+  }
+
+  /** Report the active camera resolution for the perf overlay. */
+  setCameraResolution(width: number, height: number): void {
+    this.perf.setResolution(width, height);
   }
 
   /** Apply a manual sitting/standing correction. */
@@ -199,5 +222,6 @@ export class MonitoringController {
     this.ema.reset();
     this.positionMachine.reset();
     this.duration.reset();
+    this.perf.reset();
   }
 }

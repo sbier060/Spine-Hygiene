@@ -144,6 +144,7 @@ export function useMonitoring(
           void scheduleNext(2000);
           return;
         }
+        controller.setCameraResolution(started.value.width, started.value.height);
         const video = videoRef.current;
         if (video) {
           video.srcObject = started.value.stream;
