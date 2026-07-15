@@ -41,7 +41,7 @@ onto a canvas separately; they draw nothing to disk.
 | `monitoring/`| `monitoringController`, `adaptiveInference`, `presenceDetector`, `monitoringConfig`, `monitoringTypes` | pure |
 | `position/` | `positionFeatures`, `positionCalibration`, `positionClassifier`, `positionStateMachine`, `durationTracker`, `positionTypes` | pure |
 | `notifications/`| `notificationTypes`, `interventionRules`, `notificationService` (Tauri) | pure except the service |
-| `storage/`  | `settingsRepository` (localStorage now, SQLite in Phase 4)              | pure (injectable store) |
+| `storage/`  | `settingsRepository` (localStorage); `schema`, `database`, `session/event/calibration` repositories, `sessionAggregator`, `dashboardMetrics`, `historyStore` (SQLite) | pure logic + injectable DB |
 | `camera/`   | `cameraTypes`, `cameraPermissions`, `cameraManager`, `frameSampler`     | side-effectful (browser APIs) |
 | `workers/`  | `poseWorker`                                                            | worker |
 | `tray/`     | `trayState` (pure mapping), `trayCommands` (Tauri bridge)              | mixed |
@@ -86,8 +86,22 @@ decision logic (state machine, scheduler, presence, scoring) is pure and tested.
   (current/longest/changes, away excluded), and sitting/standing duration
   reminders with cooldown. Manual "I'm sitting / I'm standing" from the window
   and the tray.
-- **Phases 4–5 (not yet):** SQLite history + dashboard (4), optimization (5). See
+- **Phase 4 (done):** SQLite history via the Tauri SQL plugin (settings kept in
+  localStorage; sessions/events/calibration in SQLite), an in-memory session
+  aggregator flushed ~once/min + at session end, a dashboard (today's sitting/
+  standing/away, longest sessions, reminder count, posture consistency), a
+  position-change timeline, and delete/export controls.
+- **Phase 5 (not yet):** optimization (CPU/RAM/battery/camera lifecycle). See
   `docs/PRODUCT_SPEC.md`.
+
+### History (Phase 4)
+
+Repositories depend on a small `SpineDatabase` interface, not on Tauri, so their
+logic is unit-tested with an in-memory fake; the real implementation is the Tauri
+SQL plugin and only runs natively. `HistoryStore` always keeps an in-memory
+aggregator (so the dashboard works in a plain browser) and, when a database
+attaches (native app), persists summaries/events/calibration. Only derived
+numbers are stored — **never frames**, and writes are periodic, never per frame.
 
 ### Position tracking (Phase 3)
 

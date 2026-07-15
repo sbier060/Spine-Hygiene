@@ -23,7 +23,8 @@ export type AppPhase =
   | "calibrate"
   | "calibrate_standing"
   | "sandbox"
-  | "monitor";
+  | "monitor"
+  | "dashboard";
 
 /** A pending manual position correction (consumed by the monitoring hook). */
 export interface ManualMark {

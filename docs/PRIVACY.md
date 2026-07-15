@@ -29,11 +29,10 @@ the model file into `public/models/` manually and run fully offline.
 
 ## What is stored locally
 
-Phase 1 (the current detection sandbox) stores **nothing** on disk — the
-calibration baseline lives only in memory for the session.
-
-From Phase 4 onward, Spine-IQ will persist **derived summaries only** in a local
-SQLite database (never frames):
+Spine-IQ persists **derived summaries only** in a local SQLite database (never
+frames). Settings are kept in the WebView's localStorage; sessions, events, and
+calibration profiles are in SQLite on this computer. Writes are periodic
+(≈once/min and at session end), never per frame:
 
 | Table                 | Contents (all derived, no images)                          |
 | --------------------- | ---------------------------------------------------------- |

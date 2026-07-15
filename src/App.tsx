@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef } from "react";
 import { AppProvider, useAppContext } from "./app/AppProvider";
+import { HistoryProvider, useHistory } from "./app/HistoryProvider";
 import { AppRouter } from "./app/router";
 import { usePoseLoop } from "./hooks/usePoseLoop";
 import { useMonitoring } from "./hooks/useMonitoring";
@@ -17,6 +18,7 @@ import {
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useAppContext();
+  const history = useHistory();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // The sandbox loop needs the camera during placement, calibration, and sandbox.
@@ -61,6 +63,7 @@ function AppShell(): JSX.Element {
       positionStanding: state.positionBaselineStanding,
     },
     state.manualMark,
+    history,
     dispatch,
     monitoringOptionsRef.current,
   );
@@ -94,7 +97,7 @@ function AppShell(): JSX.Element {
           dispatch({ type: "resume_monitoring" });
           break;
         case "open_dashboard":
-          dispatch({ type: "set_phase", phase: "monitor" });
+          dispatch({ type: "set_phase", phase: "dashboard" });
           break;
         case "mark_sitting":
           dispatch({ type: "mark_position", position: "sitting" });
@@ -136,7 +139,9 @@ function AppShell(): JSX.Element {
 export default function App(): JSX.Element {
   return (
     <AppProvider>
-      <AppShell />
+      <HistoryProvider>
+        <AppShell />
+      </HistoryProvider>
     </AppProvider>
   );
 }

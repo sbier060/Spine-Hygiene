@@ -31,12 +31,20 @@ export function MonitorScreen(): JSX.Element {
     <section className="screen monitor">
       <header className="sandbox-header">
         <h1>Monitoring</h1>
-        <button
-          className="ghost"
-          onClick={() => dispatch({ type: "set_phase", phase: "sandbox" })}
-        >
-          Sandbox
-        </button>
+        <div className="header-actions">
+          <button
+            className="ghost"
+            onClick={() => dispatch({ type: "set_phase", phase: "dashboard" })}
+          >
+            Dashboard
+          </button>
+          <button
+            className="ghost"
+            onClick={() => dispatch({ type: "set_phase", phase: "sandbox" })}
+          >
+            Sandbox
+          </button>
+        </div>
       </header>
 
       <div className={`band band-${monitor?.state ?? "good"}`}>{label}</div>

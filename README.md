@@ -4,16 +4,17 @@ A quiet macOS **menu-bar wellness utility** that watches your posture — locall
 privately — and nudges you when you've been leaning forward or sitting too long.
 It's a wellness tool, **not a medical device**.
 
-> **Phases 1–3 done.** Phase 1: detection sandbox (shell, tray, camera, MediaPipe
-> landmarks, developer overlay, sitting calibration, live raw + smoothed posture
-> scores). Phase 2: the posture monitor — timed **state machine** (drift →
-> poor-candidate → poor-confirmed → cooldown), **adaptive inference** (camera
-> released when paused), **away detection**, calm **native notifications**,
-> **menu-bar status** with **pause/resume**, and **settings** that tune the
-> monitor. Phase 3: **position tracking** — optional standing calibration, a
-> confidence-based **sitting/standing classifier**, **duration tracking**,
-> **sitting/standing reminders**, and manual "I'm sitting / I'm standing"
-> controls (window + tray). SQLite history and the dashboard arrive in Phases 4–5
+> **Phases 1–4 done.** Phase 1: detection sandbox. Phase 2: the posture monitor —
+> timed **state machine** (drift → poor-candidate → poor-confirmed → cooldown),
+> **adaptive inference** (camera released when paused), **away detection**, calm
+> **native notifications**, **menu-bar status** with **pause/resume**, and
+> **settings** that tune the monitor. Phase 3: **position tracking** — optional
+> standing calibration, a confidence-based **sitting/standing classifier**,
+> **duration tracking**, **sitting/standing reminders**, and manual "I'm sitting /
+> I'm standing". Phase 4: **history** — local **SQLite** persistence (derived
+> summaries only, never frames), a **dashboard** (today's sitting/standing/away,
+> longest sessions, reminder count, posture consistency), a position-change
+> **timeline**, and **delete/export** controls. Phase 5 (optimization) remains
 > (see `docs/PRODUCT_SPEC.md`).
 
 ## What it does

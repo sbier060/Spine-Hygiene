@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useAppContext } from "../app/AppProvider";
+import { useHistory } from "../app/HistoryProvider";
 import { CameraPreview } from "../components/CameraPreview";
 import {
   CalibrationCollector,
@@ -30,6 +31,7 @@ export function CalibrationScreen({
   positionType: "sitting" | "standing";
 }): JSX.Element {
   const { state, dispatch } = useAppContext();
+  const history = useHistory();
   const postureRef = useRef(new CalibrationCollector());
   const positionRef = useRef(new PositionCalibrationCollector());
   const [collecting, setCollecting] = useState(false);
@@ -52,26 +54,40 @@ export function CalibrationScreen({
     if (posture.validSampleCount >= TARGET_SAMPLES) {
       setCollecting(false);
       const info = cameraInfoRef.current;
+      const now = Date.now();
+      const positionBaseline = position.build(positionType);
+      let postureBaseline = null;
       if (!isStanding) {
         const meta: CalibrationMeta = {
           positionType: "sitting",
           cameraWidth: info?.width ?? 640,
           cameraHeight: info?.height ?? 360,
           cameraDeviceId: info?.deviceId ?? null,
-          createdAt: Date.now(),
+          createdAt: now,
         };
-        dispatch({ type: "set_baseline", baseline: posture.build(meta) });
+        postureBaseline = posture.build(meta);
+        dispatch({ type: "set_baseline", baseline: postureBaseline });
       }
-      dispatch({
-        type: "set_position_baseline",
-        baseline: position.build(positionType),
-      });
+      dispatch({ type: "set_position_baseline", baseline: positionBaseline });
+      // Persist so the user doesn't recalibrate next launch (native app only).
+      void history.saveCalibration(
+        { positionType, postureBaseline, positionBaseline },
+        now,
+      );
       dispatch({
         type: "set_phase",
         phase: isStanding ? "sandbox" : "calibrate_standing",
       });
     }
-  }, [collecting, reading, cameraInfoRef, dispatch, isStanding, positionType]);
+  }, [
+    collecting,
+    reading,
+    cameraInfoRef,
+    dispatch,
+    history,
+    isStanding,
+    positionType,
+  ]);
 
   const start = (): void => {
     postureRef.current.reset();

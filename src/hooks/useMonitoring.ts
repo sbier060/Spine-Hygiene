@@ -33,8 +33,12 @@ import { updateTrayStatus } from "../tray/trayCommands";
 import type { CalibrationBaseline, PostureState } from "../posture/postureTypes";
 import type { PositionBaseline } from "../position/positionCalibration";
 import type { PositionState } from "../position/positionTypes";
+import type { HistoryStore } from "../storage/historyStore";
 import { isSpineIqError } from "../utils/errors";
 import type { AppAction, ManualMark } from "../app/appState";
+
+/** Persist the session summary at most this often (never per frame). */
+const FLUSH_INTERVAL_MS = 60_000;
 
 export interface MonitoringOptions {
   readonly machineConfig?: PostureMachineConfig;
@@ -53,6 +57,7 @@ export function useMonitoring(
   paused: boolean,
   baselines: MonitoringBaselines,
   manualMark: ManualMark | null,
+  history: HistoryStore,
   dispatch: Dispatch<AppAction>,
   options: MonitoringOptions = {},
 ): void {
@@ -67,6 +72,8 @@ export function useMonitoring(
   pausedRef.current = paused;
   const baselinesRef = useRef<MonitoringBaselines>(baselines);
   baselinesRef.current = baselines;
+  const historyRef = useRef<HistoryStore>(history);
+  historyRef.current = history;
   const configRef = useRef<PostureMachineConfig>(
     options.machineConfig ?? DEFAULT_POSTURE_MACHINE_CONFIG,
   );
@@ -76,6 +83,7 @@ export function useMonitoring(
     if (!running) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastFlushMs = 0;
 
     const camera = (cameraRef.current ??= new CameraManager());
     const engine = (engineRef.current ??= new PoseEngine());
@@ -115,6 +123,13 @@ export function useMonitoring(
           inferenceMs: 0,
         });
         dispatch({ type: "set_monitor", monitor: result });
+        historyRef.current.record(now, {
+          position: result.position,
+          postureState: result.state,
+          postureNotified: false,
+          positionNotified: false,
+          paused: true,
+        });
         void syncTray(result.state, result.position, now);
         void scheduleNext(null);
         return;
@@ -193,6 +208,21 @@ export function useMonitoring(
         );
       }
 
+      // Persist: accumulate in memory, write summary at most once/min.
+      const store = historyRef.current;
+      store.record(now, {
+        position: result.position,
+        postureState: result.state,
+        postureNotified: result.notify,
+        positionNotified: result.positionReminder !== null,
+        paused: false,
+      });
+      if (result.positionEvent) void store.addPositionEvent(result.positionEvent);
+      if (now - lastFlushMs >= FLUSH_INTERVAL_MS) {
+        lastFlushMs = now;
+        void store.flush(now);
+      }
+
       void syncTray(result.state, result.position, now);
       void scheduleNext(result.nextIntervalMs);
     }
@@ -216,6 +246,7 @@ export function useMonitoring(
 
     async function startup(): Promise<void> {
       await notifier.ensurePermission();
+      await historyRef.current.startSession(performance.now());
       if (!cancelled) void tick();
     }
 
@@ -224,6 +255,8 @@ export function useMonitoring(
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      // Finalize the session summary on stop.
+      void historyRef.current.flush(performance.now(), true);
     };
   }, [running, videoRef, dispatch]);
 
