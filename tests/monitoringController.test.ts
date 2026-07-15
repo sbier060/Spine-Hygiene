@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { MonitoringController } from "../src/monitoring/monitoringController";
 import { extractFeatures } from "../src/pose/featureExtractor";
 import { buildBaseline } from "../src/posture/calibrationService";
-import { uprightPose } from "./fixtures";
+import { uprightPose, hunchedPose } from "./fixtures";
+import type { PostureMachineConfig } from "../src/posture/postureStateMachine";
 
 const baseline = buildBaseline(
   Array.from({ length: 12 }, () => extractFeatures(uprightPose())),
@@ -75,5 +76,50 @@ describe("MonitoringController", () => {
     });
     expect(result.state).toBe("paused");
     expect(result.nextIntervalMs).toBeNull();
+  });
+
+  it("runs a full episode: warm-up → sustained hunch notifies once → recovery", () => {
+    // Fast config so the episode completes in a handful of synthetic frames.
+    const fast: PostureMachineConfig = {
+      driftThreshold: 0.35,
+      enterPoor: 0.6,
+      exitPoor: 0.4,
+      driftSustainMs: 500,
+      poorPersistenceMs: 1000,
+      cooldownMs: 10_000,
+      resetSustainMs: 1000,
+      awayGraceMs: 2000,
+    };
+    const c = new MonitoringController({ machineConfig: fast, emaAlpha: 0.6 });
+
+    let notifies = 0;
+    let t = 0;
+    const feed = (landmarks: ReturnType<typeof uprightPose>, n: number): void => {
+      for (let i = 0; i < n; i++) {
+        const r = c.ingest({
+          nowMs: t,
+          landmarks,
+          baseline,
+          paused: false,
+          inferenceMs: 5,
+        });
+        if (r.notify) notifies++;
+        t += 200;
+      }
+    };
+
+    feed(uprightPose(), 4); // warm up presence + establish good
+    expect(c.ingest({ nowMs: t, landmarks: uprightPose(), baseline, paused: false, inferenceMs: 5 }).state).toBe("good");
+
+    feed(hunchedPose(), 20); // sustained hunch → exactly one notification
+    expect(notifies).toBe(1);
+
+    const before = notifies;
+    feed(hunchedPose(), 10); // still hunched, but within cooldown → no repeat
+    expect(notifies).toBe(before);
+
+    feed(uprightPose(), 12); // recover
+    const recovered = c.ingest({ nowMs: t, landmarks: uprightPose(), baseline, paused: false, inferenceMs: 5 });
+    expect(recovered.state).toBe("good");
   });
 });
