@@ -2,8 +2,19 @@ import { describe, it, expect } from "vitest";
 import { MonitoringController } from "../src/monitoring/monitoringController";
 import { extractFeatures } from "../src/pose/featureExtractor";
 import { buildBaseline } from "../src/posture/calibrationService";
-import { uprightPose, hunchedPose } from "./fixtures";
+import { extractPositionFeatures } from "../src/position/positionFeatures";
+import { buildPositionBaseline } from "../src/position/positionCalibration";
+import { uprightPose, hunchedPose, standingPose } from "./fixtures";
 import type { PostureMachineConfig } from "../src/posture/postureStateMachine";
+
+const sitPositionBaseline = buildPositionBaseline(
+  Array.from({ length: 8 }, () => extractPositionFeatures(uprightPose())),
+  "sitting",
+);
+const standPositionBaseline = buildPositionBaseline(
+  Array.from({ length: 8 }, () => extractPositionFeatures(standingPose())),
+  "standing",
+);
 
 const baseline = buildBaseline(
   Array.from({ length: 12 }, () => extractFeatures(uprightPose())),
@@ -76,6 +87,58 @@ describe("MonitoringController", () => {
     });
     expect(result.state).toBe("paused");
     expect(result.nextIntervalMs).toBeNull();
+  });
+
+  it("automatically classifies standing after it is sustained", () => {
+    const c = new MonitoringController();
+    let r = c.ingest({
+      nowMs: 0,
+      landmarks: standingPose(),
+      baseline,
+      sittingPositionBaseline: sitPositionBaseline,
+      standingPositionBaseline: standPositionBaseline,
+      paused: false,
+      inferenceMs: 5,
+    });
+    // Presence warm-up + sustained-switch window (default 4s).
+    for (let i = 1; i <= 8; i++) {
+      r = c.ingest({
+        nowMs: i * 1000,
+        landmarks: standingPose(),
+        baseline,
+        sittingPositionBaseline: sitPositionBaseline,
+        standingPositionBaseline: standPositionBaseline,
+        paused: false,
+        inferenceMs: 5,
+      });
+    }
+    expect(r.position).toBe("standing");
+    expect(r.durations.totalStandingMs).toBeGreaterThan(0);
+  });
+
+  it("classifies a sitting user as sitting", () => {
+    const c = new MonitoringController();
+    let r = c.ingest({
+      nowMs: 0,
+      landmarks: uprightPose(),
+      baseline,
+      sittingPositionBaseline: sitPositionBaseline,
+      standingPositionBaseline: standPositionBaseline,
+      paused: false,
+      inferenceMs: 5,
+    });
+    for (let i = 1; i <= 8; i++) {
+      r = c.ingest({
+        nowMs: i * 1000,
+        landmarks: uprightPose(),
+        baseline,
+        sittingPositionBaseline: sitPositionBaseline,
+        standingPositionBaseline: standPositionBaseline,
+        paused: false,
+        inferenceMs: 5,
+      });
+    }
+    expect(r.position).toBe("sitting");
   });
 
   it("applies a manual position mark and accrues duration for it", () => {

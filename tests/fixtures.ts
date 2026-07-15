@@ -62,5 +62,26 @@ export function hunchedPose(): Landmark[] {
   });
 }
 
+/**
+ * Same upright posture but positioned higher and slightly farther in the frame —
+ * as when the user stands up at a fixed webcam. Posture (normalized) features are
+ * ~unchanged; the ABSOLUTE position features (shoulder/head height, face size)
+ * differ, which is what the sit/stand classifier keys on.
+ */
+export function standingPose(): Landmark[] {
+  return makePose({
+    NOSE: { x: 0.5, y: 0.1, z: -0.1, visibility: 0.99 },
+    LEFT_EYE: { x: 0.47, y: 0.08, z: -0.09, visibility: 0.98 },
+    RIGHT_EYE: { x: 0.53, y: 0.08, z: -0.09, visibility: 0.98 },
+    LEFT_EAR: { x: 0.44, y: 0.11, z: 0, visibility: 0.95 },
+    RIGHT_EAR: { x: 0.56, y: 0.11, z: 0, visibility: 0.95 },
+    LEFT_SHOULDER: { x: 0.38, y: 0.4, z: 0, visibility: 0.97 },
+    RIGHT_SHOULDER: { x: 0.62, y: 0.4, z: 0, visibility: 0.97 },
+    // Hips out of frame when standing at a laptop.
+    LEFT_HIP: HIDDEN,
+    RIGHT_HIP: HIDDEN,
+  });
+}
+
 /** Mark a landmark as effectively missing by dropping its visibility. */
 export const HIDDEN: Partial<Landmark> = { visibility: 0.1 };
