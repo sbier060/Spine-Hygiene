@@ -25,6 +25,11 @@ export function MonitorScreen(): JSX.Element {
   const label = monitor
     ? statusHeadline(monitor.state, monitor.position)
     : "Starting…";
+  const slouching =
+    monitor !== null &&
+    (monitor.state === "poor_candidate" ||
+      monitor.state === "poor_confirmed" ||
+      monitor.state === "cooldown");
 
   const pauseFor = (minutes: number): void => {
     dispatch({
@@ -53,7 +58,14 @@ export function MonitorScreen(): JSX.Element {
         </div>
       </header>
 
-      <div className={`band band-${monitor?.state ?? "good"}`}>{label}</div>
+      {slouching ? (
+        <div className="slouch-alert">
+          <span className="slouch-alert-title">{label}</span>
+          <span className="slouch-alert-sub">Sit back and reset your shoulders</span>
+        </div>
+      ) : (
+        <div className={`band band-${monitor?.state ?? "good"}`}>{label}</div>
+      )}
 
       <div className="meta-row">
         <span>{paused ? "Paused" : "Active"}</span>

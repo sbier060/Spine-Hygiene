@@ -313,6 +313,17 @@ export function useMonitoring(
 
     async function startup(): Promise<void> {
       await notifier.ensurePermission();
+      // The monitor uses its own pose engine — it must be initialized before the
+      // first detect (this was the "pose engine not initialized" error).
+      try {
+        await engine.init();
+        dbg("pose engine initialized");
+      } catch (err) {
+        dbg("pose engine init FAILED", err);
+        if (isSpineIqError(err)) dispatch({ type: "set_error", error: err });
+        return;
+      }
+      if (cancelled) return;
       await historyRef.current.startSession(performance.now());
       if (!cancelled) void tick();
     }
