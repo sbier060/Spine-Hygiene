@@ -6,11 +6,22 @@
  */
 import {
   CAMERA_CONSTRAINTS,
+  FALLBACK_CONSTRAINTS,
   type ActiveCamera,
 } from "./cameraTypes";
 import { cameraErrorFromDom, type SpineIqError } from "../utils/errors";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: SpineIqError };
+
+/** True for errors caused by unsatisfiable constraints (not permission/hardware). */
+function isConstraintError(err: unknown): boolean {
+  return (
+    err instanceof DOMException &&
+    (err.name === "OverconstrainedError" ||
+      err.name === "TypeError" ||
+      err.message.toLowerCase().includes("constraint"))
+  );
+}
 
 export class CameraManager {
   private active: ActiveCamera | null = null;
@@ -55,7 +66,7 @@ export class CameraManager {
       : CAMERA_CONSTRAINTS;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await this.acquire(constraints, deviceId);
       const track = stream.getVideoTracks()[0];
       const settings = track?.getSettings() ?? {};
       this.active = {
@@ -69,6 +80,26 @@ export class CameraManager {
       return { ok: true, value: this.active };
     } catch (err) {
       return { ok: false, error: cameraErrorFromDom(err) };
+    }
+  }
+
+  /**
+   * getUserMedia with a fallback: if the WebView rejects the detailed constraints
+   * as unsatisfiable (macOS WKWebView can be picky), retry with a bare request.
+   */
+  private async acquire(
+    constraints: MediaStreamConstraints,
+    deviceId?: string,
+  ): Promise<MediaStream> {
+    const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    try {
+      return await gum(constraints);
+    } catch (err) {
+      if (!isConstraintError(err)) throw err;
+      const fallback: MediaStreamConstraints = deviceId
+        ? { video: { deviceId: { exact: deviceId } }, audio: false }
+        : FALLBACK_CONSTRAINTS;
+      return gum(fallback);
     }
   }
 
