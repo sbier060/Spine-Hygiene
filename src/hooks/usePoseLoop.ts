@@ -18,6 +18,8 @@ import { assessDetectionQuality } from "../pose/poseQuality";
 import { ExponentialMovingAverage } from "../pose/smoothing";
 import { scorePosture } from "../posture/postureScorer";
 import type { CalibrationBaseline, PostureBand } from "../posture/postureTypes";
+import { statusHeadline, trayTone } from "../tray/trayState";
+import { updateTrayStatus } from "../tray/trayCommands";
 import { cameraErrorFromDom, isSpineIqError } from "../utils/errors";
 import type { AppAction } from "../app/appState";
 
@@ -103,6 +105,14 @@ export function usePoseLoop(
           band,
           inferenceMs,
         },
+      });
+      // Keep the menu-bar dot/label in sync with the live sandbox reading (band
+      // is a subset of PostureState; position is unknown here).
+      void updateTrayStatus({
+        postureLabel: statusHeadline(band, "unknown"),
+        positionLabel: "Unknown",
+        durationLabel: "",
+        tone: trayTone(band),
       });
     }
 
