@@ -29,7 +29,8 @@ export const DEFAULT_INTERVALS: AdaptiveIntervals = {
   stable: 1800,
   drifting: 400,
   poor: 1000,
-  lowConfidence: 1000,
+  // Re-check quickly when unsure so it recovers fast once you're back in frame.
+  lowConfidence: 500,
 };
 
 /**

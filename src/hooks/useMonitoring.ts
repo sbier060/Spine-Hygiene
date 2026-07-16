@@ -24,7 +24,7 @@ import {
   standingNotification,
 } from "../notifications/interventionRules";
 import {
-  postureLabel,
+  statusHeadline,
   positionLabel,
   trayTone,
   formatDuration,
@@ -262,7 +262,7 @@ export function useMonitoring(
         stateEnteredMsRef.current = now;
       }
       await updateTrayStatus({
-        postureLabel: postureLabel(state),
+        postureLabel: statusHeadline(state, position),
         positionLabel: positionLabel(position),
         durationLabel: formatDuration(now - stateEnteredMsRef.current),
         tone: pausedRef.current ? "paused" : trayTone(state),

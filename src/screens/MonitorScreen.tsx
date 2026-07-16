@@ -5,7 +5,11 @@
  * developer mode — the live scheduler mode, score, and inference time.
  */
 import { useAppContext } from "../app/AppProvider";
-import { postureLabel, positionLabel, formatDuration } from "../tray/trayState";
+import {
+  statusHeadline,
+  positionLabel,
+  formatDuration,
+} from "../tray/trayState";
 
 const PAUSE_OPTIONS = [15, 30, 60] as const;
 
@@ -18,7 +22,9 @@ export function MonitorScreen(): JSX.Element {
   const monitor = state.monitor;
   const status = state.monitoringStatus;
   const paused = status.kind === "paused";
-  const label = monitor ? postureLabel(monitor.state) : "Starting…";
+  const label = monitor
+    ? statusHeadline(monitor.state, monitor.position)
+    : "Starting…";
 
   const pauseFor = (minutes: number): void => {
     dispatch({

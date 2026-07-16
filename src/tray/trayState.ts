@@ -50,6 +50,38 @@ export function trayTone(state: PostureState): TrayTone {
   }
 }
 
+/**
+ * Combined headline the user sees: posture × position in one phrase, e.g.
+ * "Standing well", "Sitting slouched". Falls back to posture-only when the
+ * position isn't known, and to the plain state for away/paused/low-confidence.
+ */
+export function statusHeadline(
+  state: PostureState,
+  position: PositionState,
+): string {
+  if (state === "paused") return "Paused";
+  if (state === "away" || position === "away") return "Away";
+  if (state === "low_confidence") return "Low confidence";
+
+  const posture =
+    state === "poor_candidate" ||
+    state === "poor_confirmed" ||
+    state === "cooldown"
+      ? "slouched"
+      : state === "drifting"
+        ? "drifting"
+        : "well";
+
+  if (position === "sitting") return `Sitting ${posture}`;
+  if (position === "standing") return `Standing ${posture}`;
+  // Position unknown → describe posture on its own.
+  return posture === "well"
+    ? "Good posture"
+    : posture === "drifting"
+      ? "Drifting"
+      : "Slouched";
+}
+
 export function positionLabel(position: PositionState): string {
   switch (position) {
     case "sitting":

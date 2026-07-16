@@ -4,6 +4,7 @@ import {
   trayTone,
   positionLabel,
   formatDuration,
+  statusHeadline,
 } from "../src/tray/trayState";
 
 describe("tray state mapping", () => {
@@ -25,6 +26,20 @@ describe("tray state mapping", () => {
   it("labels positions", () => {
     expect(positionLabel("sitting")).toBe("Sitting");
     expect(positionLabel("unknown")).toBe("Unknown");
+  });
+
+  it("combines posture and position into a headline", () => {
+    expect(statusHeadline("good", "sitting")).toBe("Sitting well");
+    expect(statusHeadline("good", "standing")).toBe("Standing well");
+    expect(statusHeadline("poor_confirmed", "standing")).toBe("Standing slouched");
+    expect(statusHeadline("drifting", "sitting")).toBe("Sitting drifting");
+    // Unknown position → posture only.
+    expect(statusHeadline("good", "unknown")).toBe("Good posture");
+    expect(statusHeadline("poor_confirmed", "unknown")).toBe("Slouched");
+    // Special states win regardless of position.
+    expect(statusHeadline("low_confidence", "sitting")).toBe("Low confidence");
+    expect(statusHeadline("good", "away")).toBe("Away");
+    expect(statusHeadline("paused", "sitting")).toBe("Paused");
   });
 
   it("formats durations compactly", () => {
