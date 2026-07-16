@@ -38,6 +38,12 @@ export async function updateTrayStatus(status: TrayStatus): Promise<void> {
   });
 }
 
+/** Pop the window to the front (always-on-top) for a posture alert, or clear it. */
+export async function setPostureAlert(active: boolean): Promise<void> {
+  if (!inTauri()) return;
+  await invoke("set_posture_alert", { active });
+}
+
 /** Subscribe to tray menu commands; returns an unsubscribe function. */
 export async function listenTrayCommands(
   handler: (command: TrayCommand) => void,

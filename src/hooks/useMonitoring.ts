@@ -31,7 +31,7 @@ import {
   trayTone,
   formatDuration,
 } from "../tray/trayState";
-import { updateTrayStatus } from "../tray/trayCommands";
+import { updateTrayStatus, setPostureAlert } from "../tray/trayCommands";
 import type { CalibrationBaseline, PostureState } from "../posture/postureTypes";
 import type { PositionBaseline } from "../position/positionCalibration";
 import type { PositionState } from "../position/positionTypes";
@@ -88,6 +88,7 @@ export function useMonitoring(
     position: "sitting" | "standing";
     collector: PositionCalibrationCollector;
   } | null>(null);
+  const alertActiveRef = useRef(false);
   const configRef = useRef<PostureMachineConfig>(
     options.machineConfig ?? DEFAULT_POSTURE_MACHINE_CONFIG,
   );
@@ -144,6 +145,10 @@ export function useMonitoring(
           positionNotified: false,
           paused: true,
         });
+        if (alertActiveRef.current) {
+          alertActiveRef.current = false;
+          void setPostureAlert(false);
+        }
         void syncTray(result.state, result.position, now);
         void scheduleNext(null);
         return;
@@ -290,6 +295,15 @@ export function useMonitoring(
         void store.flush(now);
       }
 
+      // Big red alert: pop the window to the front while slouching is confirmed,
+      // and drop it once posture recovers.
+      const shouldAlert =
+        result.state === "poor_confirmed" || result.state === "cooldown";
+      if (shouldAlert !== alertActiveRef.current) {
+        alertActiveRef.current = shouldAlert;
+        void setPostureAlert(shouldAlert);
+      }
+
       void syncTray(result.state, result.position, now);
       void scheduleNext(result.nextIntervalMs);
     }
@@ -333,8 +347,12 @@ export function useMonitoring(
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
-      // Finalize the session summary on stop.
+      // Finalize the session summary on stop; drop any active alert.
       void historyRef.current.flush(performance.now(), true);
+      if (alertActiveRef.current) {
+        alertActiveRef.current = false;
+        void setPostureAlert(false);
+      }
     };
   }, [running, videoRef, dispatch]);
 

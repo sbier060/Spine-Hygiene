@@ -28,7 +28,9 @@ export interface SettingsData {
 export const DEFAULT_SETTINGS: SettingsData = {
   sensitivity: "balanced",
   deviationSaturation: 4,
-  poorPersistenceSeconds: 60,
+  // Sustained slouch before the red alert / notification fires. Snappier than the
+  // 60 s spec default for a responsive personal nudge.
+  poorPersistenceSeconds: 20,
   postureCooldownMinutes: 15,
   sittingReminderEnabled: true,
   sittingReminderMinutes: 50,
@@ -47,7 +49,7 @@ export interface KeyValueStore {
   setItem(key: string, value: string): void;
 }
 
-const STORAGE_KEY = "spine-iq.settings.v1";
+const STORAGE_KEY = "spine-iq.settings.v2";
 
 function browserStore(): KeyValueStore | null {
   if (typeof localStorage === "undefined") return null;

@@ -26,6 +26,19 @@ pub fn show_main_window<R: Runtime>(app: &tauri::AppHandle<R>) {
     }
 }
 
+/// Posture alert: when active, pop the window to the front and keep it on top so
+/// the big red warning is unmissable; when cleared, drop the always-on-top.
+pub fn set_posture_alert<R: Runtime>(app: &tauri::AppHandle<R>, active: bool) {
+    if let Some(window) = app.get_webview_window("main") {
+        if active {
+            reveal(&window);
+            let _ = window.set_always_on_top(true);
+        } else {
+            let _ = window.set_always_on_top(false);
+        }
+    }
+}
+
 fn reveal<R: Runtime>(window: &WebviewWindow<R>) {
     let _ = window.show();
     let _ = window.unminimize();

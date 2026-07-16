@@ -17,6 +17,11 @@ pub fn open_dashboard(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
+pub fn set_posture_alert(app: tauri::AppHandle, active: bool) {
+    app_lifecycle::set_posture_alert(&app, active);
+}
+
+#[tauri::command]
 pub fn update_tray_status(
     app: tauri::AppHandle,
     posture: String,

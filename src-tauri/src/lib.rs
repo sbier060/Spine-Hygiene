@@ -28,7 +28,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_app_version,
             commands::open_dashboard,
-            commands::update_tray_status
+            commands::update_tray_status,
+            commands::set_posture_alert
         ])
         .setup(|app| {
             // Menu-bar (accessory) app on macOS: no dock icon, lives in the tray.
