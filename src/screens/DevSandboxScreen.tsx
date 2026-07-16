@@ -5,12 +5,22 @@
  * This is the surface used to prove that hunching reads differently from the
  * calibrated sitting posture.
  */
+import { useEffect, useRef, useState } from "react";
 import { useAppContext } from "../app/AppProvider";
 import { CameraPreview } from "../components/CameraPreview";
 import {
   SCORED_FEATURE_KEYS,
   type ScoredFeatureKey,
 } from "../pose/featureExtractor";
+import {
+  CalibrationCollector,
+  type CalibrationMeta,
+} from "../posture/calibrationService";
+import { PositionCalibrationCollector } from "../position/positionCalibration";
+import { extractPositionFeatures } from "../position/positionFeatures";
+
+/** Valid frames to gather for an in-place "this is my good posture" recapture. */
+const RECAPTURE_SAMPLES = 15;
 
 const FEATURE_LABELS: Record<ScoredFeatureKey, string> = {
   headForward: "Head-forward",
@@ -35,6 +45,52 @@ export function DevSandboxScreen({
   const { state, dispatch } = useAppContext();
   const reading = state.latest;
   const baseline = state.baseline;
+
+  // In-place "this is my good posture" recapture: retrains the baseline from the
+  // live pose so the score reflects how you actually sit, right now.
+  const postureRef = useRef(new CalibrationCollector());
+  const positionRef = useRef(new PositionCalibrationCollector());
+  const [capturing, setCapturing] = useState(false);
+  const [captureCount, setCaptureCount] = useState(0);
+
+  useEffect(() => {
+    if (!capturing || !reading) return;
+    postureRef.current.add(reading.features, reading.quality);
+    positionRef.current.add(
+      extractPositionFeatures(reading.landmarks),
+      reading.quality,
+    );
+    setCaptureCount(postureRef.current.validSampleCount);
+
+    if (postureRef.current.validSampleCount >= RECAPTURE_SAMPLES) {
+      setCapturing(false);
+      const now = Date.now();
+      const meta: CalibrationMeta = {
+        positionType: "sitting",
+        cameraWidth: 640,
+        cameraHeight: 360,
+        cameraDeviceId: null,
+        createdAt: now,
+      };
+      const postureBaseline = postureRef.current.build(meta);
+      const positionBaseline = positionRef.current.build("sitting");
+      dispatch({ type: "set_baseline", baseline: postureBaseline });
+      dispatch({ type: "set_position_baseline", baseline: positionBaseline });
+      console.log(
+        "[spine-iq] re-baselined good posture from",
+        postureBaseline.sampleCount,
+        "frames:",
+        postureBaseline.features,
+      );
+    }
+  }, [capturing, reading, dispatch]);
+
+  const startRecapture = (): void => {
+    postureRef.current.reset();
+    positionRef.current.reset();
+    setCaptureCount(0);
+    setCapturing(true);
+  };
 
   return (
     <section className="screen sandbox">
@@ -86,6 +142,20 @@ export function DevSandboxScreen({
           </div>
         </div>
       </div>
+
+      <button
+        className="primary"
+        disabled={capturing || !reading}
+        onClick={startRecapture}
+      >
+        {capturing
+          ? `Capturing your posture… ${captureCount}/${RECAPTURE_SAMPLES}`
+          : "This is my good posture — retrain"}
+      </button>
+      <p className="hint">
+        Sit the way you actually want to sit, then retrain. The score is measured
+        against this, so it should read ~0 right after.
+      </p>
 
       <table className="feature-table">
         <thead>
