@@ -31,8 +31,9 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/consistent-type-imports": "warn",
       // Our typed SpineIqError union is intentionally a plain object, not an
-      // Error subclass, so allow rejecting/using it directly.
+      // Error subclass, so allow rejecting/throwing/using it directly.
       "@typescript-eslint/prefer-promise-reject-errors": "off",
+      "@typescript-eslint/only-throw-error": "off",
     },
   },
   {

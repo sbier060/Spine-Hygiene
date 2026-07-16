@@ -1,15 +1,20 @@
 /**
- * Main-thread facade over the pose worker. Owns the Worker instance, initializes
- * the model once, and exposes a serial `detect()` that resolves with a PoseFrame.
- * Inference is single-in-flight: MediaPipe's VIDEO mode needs monotonic
- * timestamps and one detect at a time, and adaptive scheduling calls it serially.
+ * Pose engine. Runs MediaPipe Pose Landmarker on the main thread.
+ *
+ * (We originally ran this in a module Web Worker, but MediaPipe loads its WASM
+ * via a dynamic import of a file under /public, which Vite's dev server refuses
+ * to serve as a module. On the main thread MediaPipe loads the WASM with a
+ * <script> tag — a plain static fetch — which works in both `vite dev` and the
+ * production build. At the adaptive inference rate the main-thread cost is tiny,
+ * and each frame's ImageBitmap is closed immediately after inference.)
  */
-import type { PoseFrame } from "./landmarkTypes";
-import type {
-  PoseWorkerRequest,
-  PoseWorkerResponse,
-} from "../workers/poseWorker";
-import { spineError, type SpineIqError } from "../utils/errors";
+import {
+  FilesetResolver,
+  PoseLandmarker,
+  type PoseLandmarkerResult,
+} from "@mediapipe/tasks-vision";
+import type { Landmark, PoseFrame } from "./landmarkTypes";
+import { spineError } from "../utils/errors";
 
 /** Local asset locations (bundled under public/, served with the app). */
 function assetBase(): string {
@@ -23,98 +28,97 @@ export interface PoseEngineOptions {
   readonly modelPath?: string;
 }
 
+function toLandmarks(result: PoseLandmarkerResult): readonly Landmark[] {
+  const pose = result.landmarks[0];
+  if (!pose) return [];
+  return pose.map((lm) => ({
+    x: lm.x,
+    y: lm.y,
+    z: lm.z,
+    visibility: lm.visibility,
+  }));
+}
+
 export class PoseEngine {
-  private worker: Worker | null = null;
+  private landmarker: PoseLandmarker | null = null;
   private ready = false;
-  private pending:
-    | {
-        resolve: (frame: PoseFrame) => void;
-        reject: (err: SpineIqError) => void;
-      }
-    | null = null;
 
   async init(options: PoseEngineOptions = {}): Promise<void> {
     if (this.ready) return;
     const base = assetBase();
     const wasmPath = options.wasmPath ?? `${base}wasm`;
-    const modelPath = options.modelPath ?? `${base}models/pose_landmarker_lite.task`;
+    const modelPath =
+      options.modelPath ?? `${base}models/pose_landmarker_lite.task`;
 
-    this.worker = new Worker(
-      new URL("../workers/poseWorker.ts", import.meta.url),
-      { type: "module" },
-    );
-
-    await new Promise<void>((resolve, reject) => {
-      const worker = this.worker;
-      if (!worker) {
-        reject(spineError("model_load_failed", "worker failed to start"));
-        return;
-      }
-      const onInit = (event: MessageEvent<PoseWorkerResponse>): void => {
-        const msg = event.data;
-        if (msg.type === "ready") {
-          this.ready = true;
-          worker.removeEventListener("message", onInit);
-          worker.addEventListener("message", this.onMessage);
-          resolve();
-        } else if (msg.type === "init_error") {
-          worker.removeEventListener("message", onInit);
-          reject(spineError("model_load_failed", msg.message));
-        }
-      };
-      worker.addEventListener("message", onInit);
-      this.send({ type: "init", wasmPath, modelPath });
-    });
-  }
-
-  private readonly onMessage = (
-    event: MessageEvent<PoseWorkerResponse>,
-  ): void => {
-    const msg = event.data;
-    if (!this.pending) return;
-    if (msg.type === "result") {
-      const { resolve } = this.pending;
-      this.pending = null;
-      resolve({
-        landmarks: msg.landmarks,
-        timestampMs: msg.timestampMs,
-        inferenceMs: msg.inferenceMs,
-      });
-    } else if (msg.type === "detect_error") {
-      const { reject } = this.pending;
-      this.pending = null;
-      reject(spineError("inference_failed", msg.message));
+    try {
+      const vision = await FilesetResolver.forVisionTasks(wasmPath);
+      this.landmarker = await this.createLandmarker(vision, modelPath);
+      this.ready = true;
+    } catch (err) {
+      throw spineError(
+        "model_load_failed",
+        err instanceof Error ? err.message : "model load failed",
+      );
     }
-  };
-
-  private send(msg: PoseWorkerRequest, transfer: Transferable[] = []): void {
-    this.worker?.postMessage(msg, transfer);
   }
 
-  /** Run inference on one frame. Rejects if the engine is busy or not ready. */
+  /** Try the GPU delegate first, fall back to CPU if the WebView lacks WebGL. */
+  private async createLandmarker(
+    vision: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>,
+    modelPath: string,
+  ): Promise<PoseLandmarker> {
+    const common = {
+      runningMode: "VIDEO" as const,
+      numPoses: 1,
+      minPoseDetectionConfidence: 0.5,
+      minPosePresenceConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    };
+    try {
+      return await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: modelPath, delegate: "GPU" },
+        ...common,
+      });
+    } catch {
+      return PoseLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: modelPath, delegate: "CPU" },
+        ...common,
+      });
+    }
+  }
+
+  /** Run inference on one frame, then close the bitmap. Timestamps must increase. */
   detect(bitmap: ImageBitmap, timestampMs: number): Promise<PoseFrame> {
-    if (!this.ready || !this.worker) {
+    if (!this.ready || !this.landmarker) {
       bitmap.close();
       return Promise.reject(
         spineError("inference_failed", "pose engine not initialized"),
       );
     }
-    if (this.pending) {
-      bitmap.close();
+    try {
+      const start = performance.now();
+      const result = this.landmarker.detectForVideo(bitmap, timestampMs);
+      const inferenceMs = performance.now() - start;
+      return Promise.resolve({
+        landmarks: toLandmarks(result),
+        timestampMs,
+        inferenceMs,
+      });
+    } catch (err) {
       return Promise.reject(
-        spineError("inference_failed", "inference already in flight"),
+        spineError(
+          "inference_failed",
+          err instanceof Error ? err.message : "inference failed",
+        ),
       );
+    } finally {
+      bitmap.close();
     }
-    return new Promise<PoseFrame>((resolve, reject) => {
-      this.pending = { resolve, reject };
-      this.send({ type: "detect", bitmap, timestampMs }, [bitmap]);
-    });
   }
 
   dispose(): void {
-    this.worker?.terminate();
-    this.worker = null;
+    this.landmarker?.close();
+    this.landmarker = null;
     this.ready = false;
-    this.pending = null;
   }
 }
