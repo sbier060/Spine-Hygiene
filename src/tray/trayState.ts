@@ -43,10 +43,10 @@ export function trayTone(state: PostureState): TrayTone {
     case "cooldown":
       return "alert";
     case "paused":
-      return "paused";
     case "away":
     case "low_confidence":
-      return "normal";
+      // Neutral gray — green is reserved for confirmed good posture.
+      return "paused";
   }
 }
 

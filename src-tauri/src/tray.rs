@@ -65,7 +65,8 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("main-tray")
         .icon(icon)
-        .icon_as_template(true)
+        // Colored status dots (green/amber/red/gray) — not a monochrome template.
+        .icon_as_template(false)
         .tooltip("Spine-IQ")
         .menu(&menu)
         // Left-click reopens the window directly; right-click opens the menu.
@@ -113,6 +114,8 @@ pub fn update_tray_status<R: Runtime>(
             "Spine-IQ — {posture} · {position} · {duration}"
         )))?;
         tray.set_icon(Some(Image::from_bytes(icon_for_tone(tone))?))?;
+        // Keep the colored dot in color after swapping the image.
+        let _ = tray.set_icon_as_template(false);
     }
     Ok(())
 }
