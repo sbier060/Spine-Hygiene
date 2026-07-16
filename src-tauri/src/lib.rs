@@ -25,6 +25,15 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_opener::init())
+        // Menu-bar behavior: closing the window HIDES it (the app keeps running in
+        // the tray) instead of quitting. Reopen from the tray, or it pops itself
+        // back up as the red slouch alert.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_app_version,
             commands::open_dashboard,
