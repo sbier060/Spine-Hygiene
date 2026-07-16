@@ -40,6 +40,12 @@ import type { AppAction, ManualMark } from "../app/appState";
 /** Persist the session summary at most this often (never per frame). */
 const FLUSH_INTERVAL_MS = 60_000;
 
+/** Verbose monitoring diagnostics to the console (dev only). */
+const DEBUG_MONITOR = true;
+function dbg(...args: unknown[]): void {
+  if (DEBUG_MONITOR) console.log("[spine-iq/monitor]", ...args);
+}
+
 export interface MonitoringOptions {
   readonly machineConfig?: PostureMachineConfig;
   readonly scoreOptions?: ScoreOptions;
@@ -137,22 +143,28 @@ export function useMonitoring(
 
       // Ensure the camera is live (it may have been released while paused).
       if (!camera.isActive) {
+        dbg("camera not active → starting");
         const started = await camera.start();
         if (cancelled) return;
         if (!started.ok) {
+          dbg("camera start FAILED", started.error);
           dispatch({ type: "set_error", error: started.error });
           void scheduleNext(2000);
           return;
         }
+        dbg("camera started", started.value.width, "x", started.value.height);
         controller.setCameraResolution(started.value.width, started.value.height);
         const video = videoRef.current;
         if (video) {
           video.srcObject = started.value.stream;
           try {
             await video.play();
-          } catch {
-            /* autoplay may reject; frames still arrive */
+            dbg("video.play() ok; readyState", video.readyState);
+          } catch (err) {
+            dbg("video.play() REJECTED", err, "paused?", video.paused);
           }
+        } else {
+          dbg("videoRef is null at camera start");
         }
       }
 
@@ -162,12 +174,17 @@ export function useMonitoring(
       if (video) {
         try {
           const bitmap = await captureFrameBitmap(video);
+          if (!bitmap) {
+            dbg("no bitmap; readyState", video.readyState, "vw", video.videoWidth, "paused", video.paused, "srcObject?", video.srcObject !== null);
+          }
           if (bitmap && !cancelled) {
             const frame = await engine.detect(bitmap, now);
             landmarks = frame.landmarks;
             inferenceMs = frame.inferenceMs;
+            dbg("detect ok; landmarks", landmarks.length, "inferenceMs", inferenceMs.toFixed(1));
           }
         } catch (err) {
+          dbg("detect/capture ERROR", err);
           if (isSpineIqError(err) && err.type === "model_load_failed") {
             dispatch({ type: "set_error", error: err });
           }
@@ -185,6 +202,13 @@ export function useMonitoring(
         inferenceMs,
       });
       dispatch({ type: "set_monitor", monitor: result });
+      dbg(
+        "tick →",
+        "present:", result.present,
+        "state:", result.state,
+        "pos:", result.position,
+        "nextMs:", result.nextIntervalMs,
+      );
 
       const gate = {
         paused: false,

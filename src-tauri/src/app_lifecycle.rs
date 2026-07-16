@@ -11,6 +11,10 @@ pub fn configure(app: &mut App) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
+        // Open the web inspector automatically in dev builds so console logs are
+        // visible without hunting through menus.
+        #[cfg(debug_assertions)]
+        window.open_devtools();
     }
     Ok(())
 }
