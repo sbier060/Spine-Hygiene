@@ -54,6 +54,8 @@ export interface AppState {
   readonly monitoringStatus: MonitoringStatus;
   readonly monitor: MonitoringResult | null;
   readonly manualMark: ManualMark | null;
+  /** Per-user posture sensitivity (deviation saturation) from two-point training. */
+  readonly postureSaturation: number;
   readonly error: SpineIqError | null;
 }
 
@@ -68,6 +70,7 @@ export const initialAppState: AppState = {
   monitoringStatus: { kind: "stopped" },
   monitor: null,
   manualMark: null,
+  postureSaturation: 4,
   error: null,
 };
 
@@ -82,6 +85,7 @@ export type AppAction =
   | { type: "pause_monitoring"; untilMs: number | null }
   | { type: "resume_monitoring" }
   | { type: "mark_position"; position: PositionState }
+  | { type: "set_saturation"; value: number }
   | { type: "set_error"; error: SpineIqError | null }
   | { type: "toggle_dev" };
 
@@ -123,6 +127,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           nonce: (state.manualMark?.nonce ?? 0) + 1,
         },
       };
+    case "set_saturation":
+      return { ...state, postureSaturation: action.value };
     case "set_error":
       return { ...state, error: action.error };
     case "toggle_dev":

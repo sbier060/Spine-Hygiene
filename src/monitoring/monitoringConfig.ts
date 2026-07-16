@@ -8,7 +8,6 @@ import {
   type PostureMachineConfig,
 } from "../posture/postureStateMachine";
 import type { ScoreOptions } from "../posture/postureScorer";
-import { SENSITIVITY_PRESETS } from "../posture/postureThresholds";
 import type { SettingsData } from "../storage/settingsRepository";
 
 /** Build the posture state-machine config from settings. */
@@ -22,9 +21,7 @@ export function machineConfigFromSettings(
   };
 }
 
-/** Build score options (sensitivity → how fast a deviation counts) from settings. */
+/** Build score options from settings (per-user two-point saturation). */
 export function scoreOptionsFromSettings(settings: SettingsData): ScoreOptions {
-  return {
-    deviationSaturation: SENSITIVITY_PRESETS[settings.sensitivity].deviationSaturation,
-  };
+  return { deviationSaturation: settings.deviationSaturation };
 }

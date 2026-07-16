@@ -11,10 +11,7 @@ import { usePoseLoop } from "./hooks/usePoseLoop";
 import { useMonitoring } from "./hooks/useMonitoring";
 import { listenTrayCommands } from "./tray/trayCommands";
 import { SettingsRepository } from "./storage/settingsRepository";
-import {
-  machineConfigFromSettings,
-  scoreOptionsFromSettings,
-} from "./monitoring/monitoringConfig";
+import { machineConfigFromSettings } from "./monitoring/monitoringConfig";
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useAppContext();
@@ -32,24 +29,31 @@ function AppShell(): JSX.Element {
     videoRef,
     running,
     state.baseline,
+    state.postureSaturation,
     dispatch,
   );
 
-  // The adaptive background monitor runs during the monitor phase. Its tuning
-  // (sensitivity, poor-posture persistence) comes from saved settings.
+  // Monitor tuning: persistence/cooldown come from saved settings (loaded once);
+  // the posture saturation is live from state (two-point training updates it).
   const settingsRef = useRef<SettingsRepository | null>(null);
   settingsRef.current ??= new SettingsRepository();
-  const monitoringOptionsRef = useRef<{
-    machineConfig: ReturnType<typeof machineConfigFromSettings>;
-    scoreOptions: ReturnType<typeof scoreOptionsFromSettings>;
-  } | null>(null);
-  if (!monitoringOptionsRef.current) {
-    const settings = settingsRef.current.load();
-    monitoringOptionsRef.current = {
-      machineConfig: machineConfigFromSettings(settings),
-      scoreOptions: scoreOptionsFromSettings(settings),
-    };
-  }
+  const machineConfigRef = useRef<ReturnType<
+    typeof machineConfigFromSettings
+  > | null>(null);
+  machineConfigRef.current ??= machineConfigFromSettings(
+    settingsRef.current.load(),
+  );
+
+  // Initialize the live saturation from saved settings once.
+  const saturationInited = useRef(false);
+  useEffect(() => {
+    if (saturationInited.current) return;
+    saturationInited.current = true;
+    dispatch({
+      type: "set_saturation",
+      value: settingsRef.current?.load().deviationSaturation ?? 4,
+    });
+  }, [dispatch]);
 
   const monitoring = state.phase === "monitor";
   const paused = state.monitoringStatus.kind === "paused";
@@ -65,7 +69,10 @@ function AppShell(): JSX.Element {
     state.manualMark,
     history,
     dispatch,
-    monitoringOptionsRef.current,
+    {
+      machineConfig: machineConfigRef.current,
+      scoreOptions: { deviationSaturation: state.postureSaturation },
+    },
   );
 
   // Auto-resume when a timed pause elapses.

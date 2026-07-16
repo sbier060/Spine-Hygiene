@@ -9,6 +9,8 @@ export type SensitivityLevel = "low" | "balanced" | "high";
 
 export interface SettingsData {
   readonly sensitivity: SensitivityLevel;
+  /** Per-user deviation saturation from two-point training (lower = more sensitive). */
+  readonly deviationSaturation: number;
   readonly poorPersistenceSeconds: number;
   readonly postureCooldownMinutes: number;
   readonly sittingReminderEnabled: boolean;
@@ -25,6 +27,7 @@ export interface SettingsData {
 /** Defaults from the spec's reminder-settings section. */
 export const DEFAULT_SETTINGS: SettingsData = {
   sensitivity: "balanced",
+  deviationSaturation: 4,
   poorPersistenceSeconds: 60,
   postureCooldownMinutes: 15,
   sittingReminderEnabled: true,

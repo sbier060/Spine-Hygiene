@@ -115,3 +115,55 @@ export function scorePosture(
     usedFeatureCount: raw.length,
   };
 }
+
+export interface SaturationOptions {
+  /** Score the slouched pose should map to (default 0.9 = clearly poor). */
+  readonly targetScore?: number;
+  readonly minDeviation?: number;
+  readonly weights?: Record<ScoredFeatureKey, number>;
+  /** Clamp bounds so a tiny or huge gap can't produce a useless value. */
+  readonly min?: number;
+  readonly max?: number;
+}
+
+/**
+ * Two-point training: given the user's good baseline and a captured SLOUCHED
+ * pose, compute the `deviationSaturation` that makes the slouched pose score
+ * ~`targetScore`. This calibrates sensitivity to the user's actual good→bad
+ * range instead of a fixed threshold. Returns null if nothing is comparable.
+ */
+export function computeDeviationSaturation(
+  slouched: PostureFeatures,
+  baseline: CalibrationBaseline,
+  options: SaturationOptions = {},
+): number | null {
+  const target = options.targetScore ?? 0.9;
+  const minDev = options.minDeviation ?? MIN_ALLOWED_DEVIATION;
+  const weights = options.weights ?? DEFAULT_FEATURE_WEIGHTS;
+  const min = options.min ?? 1.5;
+  const max = options.max ?? 12;
+
+  const raw: { normDev: number; weight: number }[] = [];
+  let weightSum = 0;
+  for (const key of SCORED_FEATURE_KEYS) {
+    const current = slouched[key];
+    const featureBaseline = baseline.features[key];
+    if (current === null || featureBaseline === undefined) continue;
+    const denom = Math.max(featureBaseline.deviation, minDev);
+    raw.push({
+      normDev: Math.abs(current - featureBaseline.median) / denom,
+      weight: weights[key],
+    });
+    weightSum += weights[key];
+  }
+  if (raw.length === 0 || weightSum === 0) return null;
+
+  let weightedDeviation = 0;
+  for (const item of raw) {
+    weightedDeviation += (item.weight / weightSum) * item.normDev;
+  }
+  if (weightedDeviation <= 0) return null;
+
+  const saturation = weightedDeviation / target;
+  return Math.min(max, Math.max(min, saturation));
+}

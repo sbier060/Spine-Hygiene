@@ -34,6 +34,7 @@ export function usePoseLoop(
   videoRef: React.RefObject<HTMLVideoElement>,
   running: boolean,
   baseline: CalibrationBaseline | null,
+  deviationSaturation: number,
   dispatch: Dispatch<AppAction>,
 ): React.MutableRefObject<CameraInfo | null> {
   const cameraRef = useRef<CameraManager | null>(null);
@@ -42,6 +43,8 @@ export function usePoseLoop(
   const cameraInfoRef = useRef<CameraInfo | null>(null);
   const baselineRef = useRef<CalibrationBaseline | null>(baseline);
   baselineRef.current = baseline;
+  const saturationRef = useRef(deviationSaturation);
+  saturationRef.current = deviationSaturation;
 
   useEffect(() => {
     if (!running) return;
@@ -82,7 +85,9 @@ export function usePoseLoop(
       let rawScore = 0;
       let band: PostureBand = "good";
       if (baselineRef.current && quality.usable) {
-        const result = scorePosture(features, baselineRef.current);
+        const result = scorePosture(features, baselineRef.current, {
+          deviationSaturation: saturationRef.current,
+        });
         rawScore = result.score;
         band = result.band;
       }

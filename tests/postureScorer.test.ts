@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { extractFeatures } from "../src/pose/featureExtractor";
 import type { PostureFeatures } from "../src/pose/featureExtractor";
-import { scorePosture } from "../src/posture/postureScorer";
+import {
+  scorePosture,
+  computeDeviationSaturation,
+} from "../src/posture/postureScorer";
 import {
   buildBaseline,
   type CalibrationMeta,
@@ -101,6 +104,38 @@ describe("scorePosture", () => {
     expect(result.score).toBeGreaterThanOrEqual(0.35);
     expect(result.score).toBeLessThan(0.6);
     expect(result.band).toBe("drifting");
+  });
+});
+
+describe("computeDeviationSaturation (two-point training)", () => {
+  it("tunes saturation so the slouched pose scores near the target", () => {
+    const baseline = sittingBaseline();
+    const slouched = extractFeatures(hunchedPose());
+    const saturation = computeDeviationSaturation(slouched, baseline, {
+      targetScore: 0.9,
+    });
+    expect(saturation).not.toBeNull();
+    // With this saturation, the slouched pose scores ~0.9 and upright ~0.
+    const bad = scorePosture(slouched, baseline, {
+      deviationSaturation: saturation!,
+    });
+    const good = scorePosture(extractFeatures(uprightPose()), baseline, {
+      deviationSaturation: saturation!,
+    });
+    expect(bad.score).toBeGreaterThan(0.7);
+    expect(good.score).toBeLessThan(0.1);
+  });
+
+  it("clamps to the allowed range and returns null when nothing compares", () => {
+    const baseline = sittingBaseline();
+    const empty = {
+      headForward: null,
+      screenLean: null,
+      shoulderSlope: null,
+      shoulderCollapse: null,
+      torsoAngle: null,
+    } as const;
+    expect(computeDeviationSaturation(empty, baseline)).toBeNull();
   });
 });
 

@@ -4,7 +4,6 @@ import {
   scoreOptionsFromSettings,
 } from "../src/monitoring/monitoringConfig";
 import { DEFAULT_SETTINGS } from "../src/storage/settingsRepository";
-import { SENSITIVITY_PRESETS } from "../src/posture/postureThresholds";
 
 describe("monitoringConfig", () => {
   it("maps persistence seconds and cooldown minutes to ms", () => {
@@ -17,17 +16,10 @@ describe("monitoringConfig", () => {
     expect(cfg.cooldownMs).toBe(600_000);
   });
 
-  it("maps sensitivity to deviation saturation (higher sensitivity trips sooner)", () => {
-    const high = scoreOptionsFromSettings({
-      ...DEFAULT_SETTINGS,
-      sensitivity: "high",
-    });
-    const low = scoreOptionsFromSettings({
-      ...DEFAULT_SETTINGS,
-      sensitivity: "low",
-    });
-    expect(high.deviationSaturation).toBe(SENSITIVITY_PRESETS.high.deviationSaturation);
-    expect(low.deviationSaturation).toBe(SENSITIVITY_PRESETS.low.deviationSaturation);
-    expect(high.deviationSaturation!).toBeLessThan(low.deviationSaturation!);
+  it("passes through the per-user deviation saturation", () => {
+    expect(
+      scoreOptionsFromSettings({ ...DEFAULT_SETTINGS, deviationSaturation: 2.5 })
+        .deviationSaturation,
+    ).toBe(2.5);
   });
 });

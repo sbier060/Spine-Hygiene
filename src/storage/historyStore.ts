@@ -100,6 +100,19 @@ export class HistoryStore {
     if (this.calibrations) await this.calibrations.save(profile, nowMs);
   }
 
+  /** Load the latest saved sitting/standing calibration (for restore on launch). */
+  async loadCalibrations(): Promise<{
+    sitting: CalibrationProfile | null;
+    standing: CalibrationProfile | null;
+  }> {
+    if (!this.calibrations) return { sitting: null, standing: null };
+    const [sitting, standing] = await Promise.all([
+      this.calibrations.getLatest("sitting"),
+      this.calibrations.getLatest("standing"),
+    ]);
+    return { sitting, standing };
+  }
+
   async loadTodayStats(nowMs: number): Promise<DayStats> {
     if (this.sessions) {
       const rows = await this.sessions.listSince(startOfDay(nowMs));

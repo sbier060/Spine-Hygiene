@@ -7,20 +7,38 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useAppContext } from "../app/AppProvider";
+import { useHistory } from "../app/HistoryProvider";
 import { CameraPreview } from "../components/CameraPreview";
 import {
   SCORED_FEATURE_KEYS,
   type ScoredFeatureKey,
+  type PostureFeatures,
 } from "../pose/featureExtractor";
 import {
   CalibrationCollector,
   type CalibrationMeta,
 } from "../posture/calibrationService";
+import { computeDeviationSaturation } from "../posture/postureScorer";
+import type { CalibrationBaseline } from "../posture/postureTypes";
 import { PositionCalibrationCollector } from "../position/positionCalibration";
 import { extractPositionFeatures } from "../position/positionFeatures";
+import { SettingsRepository } from "../storage/settingsRepository";
 
-/** Valid frames to gather for an in-place "this is my good posture" recapture. */
+/** Valid frames to gather for an in-place recapture. */
 const RECAPTURE_SAMPLES = 15;
+
+type CaptureMode = "good" | "slouched" | null;
+
+/** Median feature values from a built baseline, as a plain PostureFeatures. */
+function baselineToFeatures(b: CalibrationBaseline): PostureFeatures {
+  return {
+    headForward: b.features.headForward?.median ?? null,
+    screenLean: b.features.screenLean?.median ?? null,
+    shoulderSlope: null,
+    shoulderCollapse: b.features.shoulderCollapse?.median ?? null,
+    torsoAngle: b.features.torsoAngle?.median ?? null,
+  };
+}
 
 const FEATURE_LABELS: Record<ScoredFeatureKey, string> = {
   headForward: "Head-forward",
@@ -43,53 +61,71 @@ export function DevSandboxScreen({
   videoRef: React.RefObject<HTMLVideoElement>;
 }): JSX.Element {
   const { state, dispatch } = useAppContext();
+  const history = useHistory();
   const reading = state.latest;
   const baseline = state.baseline;
 
-  // In-place "this is my good posture" recapture: retrains the baseline from the
-  // live pose so the score reflects how you actually sit, right now.
+  // Two-point training. "Good" recaptures the baseline from the live pose; then
+  // "slouched" captures the bad end so sensitivity is tuned to YOUR good→bad range.
   const postureRef = useRef(new CalibrationCollector());
   const positionRef = useRef(new PositionCalibrationCollector());
-  const [capturing, setCapturing] = useState(false);
+  const settingsRef = useRef<SettingsRepository | null>(null);
+  settingsRef.current ??= new SettingsRepository();
+  const [captureMode, setCaptureMode] = useState<CaptureMode>(null);
   const [captureCount, setCaptureCount] = useState(0);
 
   useEffect(() => {
-    if (!capturing || !reading) return;
+    if (captureMode === null || !reading) return;
     postureRef.current.add(reading.features, reading.quality);
     positionRef.current.add(
       extractPositionFeatures(reading.landmarks),
       reading.quality,
     );
     setCaptureCount(postureRef.current.validSampleCount);
+    if (postureRef.current.validSampleCount < RECAPTURE_SAMPLES) return;
 
-    if (postureRef.current.validSampleCount >= RECAPTURE_SAMPLES) {
-      setCapturing(false);
-      const now = Date.now();
-      const meta: CalibrationMeta = {
-        positionType: "sitting",
-        cameraWidth: 640,
-        cameraHeight: 360,
-        cameraDeviceId: null,
-        createdAt: now,
-      };
-      const postureBaseline = postureRef.current.build(meta);
+    const now = Date.now();
+    const meta: CalibrationMeta = {
+      positionType: "sitting",
+      cameraWidth: 640,
+      cameraHeight: 360,
+      cameraDeviceId: null,
+      createdAt: now,
+    };
+    const built = postureRef.current.build(meta);
+
+    if (captureMode === "good") {
       const positionBaseline = positionRef.current.build("sitting");
-      dispatch({ type: "set_baseline", baseline: postureBaseline });
+      dispatch({ type: "set_baseline", baseline: built });
       dispatch({ type: "set_position_baseline", baseline: positionBaseline });
-      console.log(
-        "[spine-iq] re-baselined good posture from",
-        postureBaseline.sampleCount,
-        "frames:",
-        postureBaseline.features,
+      void history.saveCalibration(
+        { positionType: "sitting", postureBaseline: built, positionBaseline },
+        now,
       );
+      console.log("[spine-iq] re-baselined good posture:", built.features);
+    } else if (baseline) {
+      // Tune saturation so this slouched pose reads ~0.9 against the good baseline.
+      const saturation = computeDeviationSaturation(
+        baselineToFeatures(built),
+        baseline,
+      );
+      if (saturation !== null) {
+        dispatch({ type: "set_saturation", value: saturation });
+        settingsRef.current?.update({ deviationSaturation: saturation });
+        console.log(
+          "[spine-iq] two-point: set posture saturation to",
+          saturation.toFixed(2),
+        );
+      }
     }
-  }, [capturing, reading, dispatch]);
+    setCaptureMode(null);
+  }, [captureMode, reading, baseline, dispatch, history]);
 
-  const startRecapture = (): void => {
+  const startCapture = (mode: Exclude<CaptureMode, null>): void => {
     postureRef.current.reset();
     positionRef.current.reset();
     setCaptureCount(0);
-    setCapturing(true);
+    setCaptureMode(mode);
   };
 
   return (
@@ -143,18 +179,32 @@ export function DevSandboxScreen({
         </div>
       </div>
 
-      <button
-        className="primary"
-        disabled={capturing || !reading}
-        onClick={startRecapture}
-      >
-        {capturing
-          ? `Capturing your posture… ${captureCount}/${RECAPTURE_SAMPLES}`
-          : "This is my good posture — retrain"}
-      </button>
+      {captureMode !== null ? (
+        <button className="primary" disabled>
+          {captureMode === "good" ? "Capturing good posture" : "Capturing slouch"}
+          … {captureCount}/{RECAPTURE_SAMPLES}
+        </button>
+      ) : (
+        <div className="pause-controls">
+          <button
+            className="primary"
+            disabled={!reading}
+            onClick={() => startCapture("good")}
+          >
+            This is my good posture
+          </button>
+          <button
+            disabled={!reading || !baseline}
+            onClick={() => startCapture("slouched")}
+          >
+            This is me slouching
+          </button>
+        </div>
+      )}
       <p className="hint">
-        Sit the way you actually want to sit, then retrain. The score is measured
-        against this, so it should read ~0 right after.
+        1) Sit how you want to sit → “good posture” (score should read ~0). 2) Then
+        slouch the way you want to be warned about → “slouching” tunes the
+        sensitivity to your range.
       </p>
 
       <table className="feature-table">
