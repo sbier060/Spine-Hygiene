@@ -28,6 +28,20 @@ export interface PoseEngineOptions {
   readonly modelPath?: string;
 }
 
+/**
+ * MediaPipe validates VIDEO-mode timestamps GLOBALLY (the underlying wasm graph
+ * is shared across PoseLandmarker instances), so a timestamp must never go
+ * backward anywhere in the app — even when switching between the sandbox loop and
+ * the monitoring loop, which use different time bases. This module-level clock
+ * guarantees a strictly increasing millisecond timestamp for every detect call.
+ */
+let sharedLastTimestampMs = 0;
+function nextTimestampMs(requestedMs: number): number {
+  const ts = Math.max(sharedLastTimestampMs + 1, Math.floor(requestedMs));
+  sharedLastTimestampMs = ts;
+  return ts;
+}
+
 function toLandmarks(result: PoseLandmarkerResult): readonly Landmark[] {
   const pose = result.landmarks[0];
   if (!pose) return [];
@@ -96,12 +110,13 @@ export class PoseEngine {
       );
     }
     try {
+      const ts = nextTimestampMs(timestampMs);
       const start = performance.now();
-      const result = this.landmarker.detectForVideo(bitmap, timestampMs);
+      const result = this.landmarker.detectForVideo(bitmap, ts);
       const inferenceMs = performance.now() - start;
       return Promise.resolve({
         landmarks: toLandmarks(result),
-        timestampMs,
+        timestampMs: ts,
         inferenceMs,
       });
     } catch (err) {
