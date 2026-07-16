@@ -33,11 +33,13 @@ export const HYSTERESIS = {
 } as const;
 
 /**
- * Floor on a feature's baseline deviation. Prevents a feature that was extremely
- * steady during calibration from producing enormous normalized deviations for
- * tiny real-world changes.
+ * Floor on a feature's baseline deviation — the "natural wobble" tolerance around
+ * a calibrated pose. Calibration is captured while holding still, so the measured
+ * deviation is near zero; without a generous floor, ordinary comfortable movement
+ * (a few hundredths of a normalized unit) reads as drift. This is the main knob
+ * that keeps "good" from feeling twitchy.
  */
-export const MIN_ALLOWED_DEVIATION = 0.02;
+export const MIN_ALLOWED_DEVIATION = 0.08;
 
 /**
  * Deviation (in baseline-sigmas) that maps to the top of the score range for a
