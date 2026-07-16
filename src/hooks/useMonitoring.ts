@@ -13,6 +13,8 @@ import { CameraManager } from "../camera/cameraManager";
 import { captureFrameBitmap } from "../camera/frameSampler";
 import { PoseEngine } from "../pose/poseLandmarker";
 import type { Landmark } from "../pose/landmarkTypes";
+import { extractPositionFeatures } from "../position/positionFeatures";
+import { PositionCalibrationCollector } from "../position/positionCalibration";
 import { MonitoringController } from "../monitoring/monitoringController";
 import type { PostureMachineConfig } from "../posture/postureStateMachine";
 import { DEFAULT_POSTURE_MACHINE_CONFIG } from "../posture/postureStateMachine";
@@ -80,6 +82,12 @@ export function useMonitoring(
   baselinesRef.current = baselines;
   const historyRef = useRef<HistoryStore>(history);
   historyRef.current = history;
+  // When the user corrects the position, learn their real sitting/standing
+  // signature (height + apparent size in frame) so it auto-detects afterward.
+  const learnRef = useRef<{
+    position: "sitting" | "standing";
+    collector: PositionCalibrationCollector;
+  } | null>(null);
   const configRef = useRef<PostureMachineConfig>(
     options.machineConfig ?? DEFAULT_POSTURE_MACHINE_CONFIG,
   );
@@ -154,17 +162,22 @@ export function useMonitoring(
         }
         dbg("camera started", started.value.width, "x", started.value.height);
         controller.setCameraResolution(started.value.width, started.value.height);
+      }
+
+      // ALWAYS ensure the <video> is showing the active stream. On React's dev
+      // double-mount the camera can already be active while the video was never
+      // (re)attached, which silently starved the loop of frames.
+      const active = camera.current;
+      {
         const video = videoRef.current;
-        if (video) {
-          video.srcObject = started.value.stream;
+        if (active && video && video.srcObject !== active.stream) {
+          video.srcObject = active.stream;
           try {
             await video.play();
-            dbg("video.play() ok; readyState", video.readyState);
+            dbg("attached stream; video.play() ok; readyState", video.readyState);
           } catch (err) {
             dbg("video.play() REJECTED", err, "paused?", video.paused);
           }
-        } else {
-          dbg("videoRef is null at camera start");
         }
       }
 
@@ -209,6 +222,35 @@ export function useMonitoring(
         "pos:", result.position,
         "nextMs:", result.nextIntervalMs,
       );
+
+      // Learn the corrected position's signature from a few good frames.
+      const learn = learnRef.current;
+      if (learn && result.present && result.usable && landmarks.length > 0) {
+        learn.collector.add(extractPositionFeatures(landmarks), {
+          score: result.confidence,
+          usable: true,
+          reason: null,
+        });
+        if (learn.collector.validSampleCount >= LEARN_SAMPLES) {
+          const positionBaseline = learn.collector.build(learn.position);
+          dispatch({ type: "set_position_baseline", baseline: positionBaseline });
+          // Keep the sitting posture baseline; standing needs no posture baseline.
+          const postureForSave =
+            learn.position === "sitting"
+              ? baselinesRef.current.posture
+              : null;
+          void historyRef.current.saveCalibration(
+            {
+              positionType: learn.position,
+              postureBaseline: postureForSave,
+              positionBaseline,
+            },
+            Date.now(),
+          );
+          dbg("learned", learn.position, "signature:", positionBaseline.features);
+          learnRef.current = null;
+        }
+      }
 
       const gate = {
         paused: false,
@@ -294,9 +336,21 @@ export function useMonitoring(
     if (video) video.srcObject = null;
   }, [running, videoRef]);
 
-  // Apply manual sitting/standing corrections immediately.
+  // Apply manual sitting/standing corrections immediately, and start learning
+  // that position's signature so classification becomes automatic afterward.
   useEffect(() => {
     if (!manualMark) return;
     controllerRef.current?.markPosition(manualMark.position, performance.now());
+    if (manualMark.position === "sitting" || manualMark.position === "standing") {
+      learnRef.current = {
+        position: manualMark.position,
+        collector: new PositionCalibrationCollector(),
+      };
+      dbg("learning", manualMark.position, "from your correction…");
+    }
   }, [manualMark]);
 }
+
+/** Frames to gather before a learned position baseline is trusted
+ * (>= MIN_POSITION_SAMPLES so buildPositionBaseline keeps the features). */
+const LEARN_SAMPLES = 8;
