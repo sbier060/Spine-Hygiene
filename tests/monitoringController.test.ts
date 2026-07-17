@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MonitoringController } from "../src/monitoring/monitoringController";
+import { DEFAULT_INTERVALS } from "../src/monitoring/adaptiveInference";
 import { extractFeatures } from "../src/pose/featureExtractor";
 import { buildBaseline } from "../src/posture/calibrationService";
 import { extractPositionFeatures } from "../src/position/positionFeatures";
@@ -50,7 +51,7 @@ describe("MonitoringController", () => {
     expect(result.present).toBe(true);
     expect(result.state).toBe("good");
     expect(result.mode).toBe("stable");
-    expect(result.nextIntervalMs).toBe(1800);
+    expect(result.nextIntervalMs).toBe(DEFAULT_INTERVALS.stable);
   });
 
   it("goes away and polls slowly when no one is detected", () => {
@@ -73,7 +74,7 @@ describe("MonitoringController", () => {
     }
     expect(result.present).toBe(false);
     expect(result.state).toBe("away");
-    expect(result.nextIntervalMs).toBe(5000);
+    expect(result.nextIntervalMs).toBe(DEFAULT_INTERVALS.away);
   });
 
   it("stops inference when paused", () => {

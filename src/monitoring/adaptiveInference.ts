@@ -23,10 +23,14 @@ export interface AdaptiveIntervals {
   readonly lowConfidence: number;
 }
 
-/** Defaults from the spec's adaptive-inference section. */
+/**
+ * Defaults from the spec's adaptive-inference section, tightened so monitoring
+ * tracks posture changes nearly as responsively as the 0.5s sandbox loop while
+ * still backing off when nothing is happening.
+ */
 export const DEFAULT_INTERVALS: AdaptiveIntervals = {
-  away: 5000,
-  stable: 1800,
+  away: 3000,
+  stable: 1000,
   drifting: 400,
   poor: 1000,
   // Re-check quickly when unsure so it recovers fast once you're back in frame.

@@ -21,6 +21,24 @@ describe("ExponentialMovingAverage", () => {
     expect(() => new ExponentialMovingAverage(0)).toThrow();
     expect(() => new ExponentialMovingAverage(1.5)).toThrow();
   });
+
+  it("weighs a sample by elapsed time: one 1500ms gap ≈ three 500ms samples", () => {
+    const slow = new ExponentialMovingAverage(0.2);
+    slow.push(0);
+    const afterGap = slow.push(1, 1500);
+
+    const fast = new ExponentialMovingAverage(0.2);
+    fast.push(0);
+    fast.push(1, 500);
+    fast.push(1, 500);
+    const afterThree = fast.push(1, 500);
+
+    expect(afterGap).toBeCloseTo(afterThree, 10);
+    // And a 500ms elapsed sample behaves exactly like the plain alpha blend.
+    const plain = new ExponentialMovingAverage(0.2);
+    plain.push(0);
+    expect(plain.push(1, 500)).toBeCloseTo(0.2, 10);
+  });
 });
 
 describe("median / standardDeviation", () => {

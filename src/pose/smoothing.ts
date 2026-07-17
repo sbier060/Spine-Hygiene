@@ -9,6 +9,13 @@
 export const DEFAULT_EMA_ALPHA = 0.2;
 
 /**
+ * The sample period `alpha` is calibrated for (the sandbox cadence). Loops that
+ * sample at other rates pass their real elapsed time to `push` so smoothing
+ * responds identically in wall-clock terms regardless of cadence.
+ */
+export const EMA_REFERENCE_PERIOD_MS = 500;
+
+/**
  * Exponential moving average. `alpha` in (0,1]; higher reacts faster.
  *   smoothed = alpha * newValue + (1 - alpha) * previous
  */
@@ -21,12 +28,25 @@ export class ExponentialMovingAverage {
     }
   }
 
-  /** Push a new sample and return the updated smoothed value. */
-  push(newValue: number): number {
-    this.value =
-      this.value === null
-        ? newValue
-        : this.alpha * newValue + (1 - this.alpha) * this.value;
+  /**
+   * Push a new sample and return the updated smoothed value. When `elapsedMs`
+   * is given, the blend factor is scaled so that N reference periods of gap
+   * weigh like N consecutive samples: eff = 1 - (1 - alpha)^(elapsed / ref).
+   */
+  push(newValue: number, elapsedMs?: number): number {
+    if (this.value === null) {
+      this.value = newValue;
+      return this.value;
+    }
+    const eff =
+      elapsedMs === undefined
+        ? this.alpha
+        : 1 -
+          Math.pow(
+            1 - this.alpha,
+            Math.max(elapsedMs, 1) / EMA_REFERENCE_PERIOD_MS,
+          );
+    this.value = eff * newValue + (1 - eff) * this.value;
     return this.value;
   }
 

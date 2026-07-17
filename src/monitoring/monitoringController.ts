@@ -107,12 +107,16 @@ export class MonitoringController {
   private readonly duration: DurationTracker;
   private readonly classifyOptions: ClassifyOptions;
   private readonly perf = new PerformanceMonitor();
+  /** Timestamp of the last classified frame, for time-aware smoothing. */
+  private lastClassifyMs: number | null = null;
 
   constructor(deps: MonitoringDeps = {}) {
     this.machine = new PostureStateMachine(
       deps.machineConfig ?? DEFAULT_POSTURE_MACHINE_CONFIG,
     );
-    this.presence = new PresenceDetector(deps.presenceConsecutive ?? 3);
+    // 2 consecutive detections to (re)confirm presence: one missed frame no
+    // longer costs seconds of "low confidence" at the slow adaptive cadences.
+    this.presence = new PresenceDetector(deps.presenceConsecutive ?? 2);
     this.ema = new ExponentialMovingAverage(deps.emaAlpha ?? DEFAULT_EMA_ALPHA);
     this.intervals = deps.intervals ?? DEFAULT_INTERVALS;
     this.scoreOptions = deps.scoreOptions ?? {};
@@ -139,7 +143,13 @@ export class MonitoringController {
     let smoothedScore = this.ema.current ?? 0;
     if (canClassify) {
       rawScore = scorePosture(features, baseline, this.scoreOptions).score;
-      smoothedScore = this.ema.push(rawScore);
+      // Time-aware smoothing: the adaptive loop samples anywhere from 0.4s to
+      // several seconds apart, so weigh each sample by real elapsed time. This
+      // keeps the monitor's responsiveness identical to the 0.5s sandbox loop.
+      const dt =
+        this.lastClassifyMs === null ? undefined : nowMs - this.lastClassifyMs;
+      smoothedScore = this.ema.push(rawScore, dt);
+      this.lastClassifyMs = nowMs;
     }
 
     const step = this.machine.update({
@@ -220,6 +230,7 @@ export class MonitoringController {
     this.machine.reset();
     this.presence.reset();
     this.ema.reset();
+    this.lastClassifyMs = null;
     this.positionMachine.reset();
     this.duration.reset();
     this.perf.reset();
