@@ -12,6 +12,7 @@ import { useMonitoring } from "./hooks/useMonitoring";
 import { listenTrayCommands } from "./tray/trayCommands";
 import { SettingsRepository } from "./storage/settingsRepository";
 import { machineConfigFromSettings } from "./monitoring/monitoringConfig";
+import { isTauriRuntime } from "./storage/database";
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useAppContext();
@@ -54,6 +55,22 @@ function AppShell(): JSX.Element {
       value: settingsRef.current?.load().deviationSaturation ?? 4,
     });
   }, [dispatch]);
+
+  // Launch at login — only in the installed (production) build, so we never
+  // register the dev binary path.
+  useEffect(() => {
+    if (!import.meta.env.PROD || !isTauriRuntime()) return;
+    void (async () => {
+      try {
+        const { isEnabled, enable } = await import(
+          "@tauri-apps/plugin-autostart"
+        );
+        if (!(await isEnabled())) await enable();
+      } catch (err) {
+        console.error("Spine-IQ: could not enable launch-at-login", err);
+      }
+    })();
+  }, []);
 
   const monitoring = state.phase === "monitor";
   const paused = state.monitoringStatus.kind === "paused";
