@@ -19,12 +19,18 @@ import {
   type CalibrationMeta,
 } from "../posture/calibrationService";
 import { computeDeviationSaturation } from "../posture/postureScorer";
+import {
+  GOOD_POSE_TOTAL_SAMPLES,
+  POSE_SETTLE_MS,
+  poseForCount,
+  poseIndexForCount,
+} from "../posture/goodPoseGuide";
 import type { CalibrationBaseline } from "../posture/postureTypes";
 import { PositionCalibrationCollector } from "../position/positionCalibration";
 import { extractPositionFeatures } from "../position/positionFeatures";
 import { SettingsRepository } from "../storage/settingsRepository";
 
-/** Valid frames to gather for an in-place recapture. */
+/** Valid frames to gather for the single-pose slouch capture. */
 const RECAPTURE_SAMPLES = 15;
 
 type CaptureMode = "good" | "slouched" | null;
@@ -87,16 +93,35 @@ export function DevSandboxScreen({
   settingsRef.current ??= new SettingsRepository();
   const [captureMode, setCaptureMode] = useState<CaptureMode>(null);
   const [captureCount, setCaptureCount] = useState(0);
+  // Guided good-posture capture: pause sampling briefly after each pose switch
+  // so the user has time to move into the next pose.
+  const settleUntilRef = useRef(0);
+  const lastPoseRef = useRef(0);
 
   useEffect(() => {
     if (captureMode === null || !reading) return;
+    if (captureMode === "good" && performance.now() < settleUntilRef.current) {
+      return;
+    }
     postureRef.current.add(reading.features, reading.quality);
     positionRef.current.add(
       extractPositionFeatures(reading.landmarks),
       reading.quality,
     );
-    setCaptureCount(postureRef.current.validSampleCount);
-    if (postureRef.current.validSampleCount < RECAPTURE_SAMPLES) return;
+    const count = postureRef.current.validSampleCount;
+    setCaptureCount(count);
+    const target =
+      captureMode === "good" ? GOOD_POSE_TOTAL_SAMPLES : RECAPTURE_SAMPLES;
+    if (count < target) {
+      if (captureMode === "good") {
+        const pose = poseIndexForCount(count);
+        if (pose !== lastPoseRef.current) {
+          lastPoseRef.current = pose;
+          settleUntilRef.current = performance.now() + POSE_SETTLE_MS;
+        }
+      }
+      return;
+    }
 
     const now = Date.now();
     const meta: CalibrationMeta = {
@@ -138,6 +163,8 @@ export function DevSandboxScreen({
   const startCapture = (mode: Exclude<CaptureMode, null>): void => {
     postureRef.current.reset();
     positionRef.current.reset();
+    settleUntilRef.current = 0;
+    lastPoseRef.current = 0;
     setCaptureCount(0);
     setCaptureMode(mode);
   };
@@ -195,8 +222,9 @@ export function DevSandboxScreen({
 
       {captureMode !== null ? (
         <button className="primary" disabled>
-          {captureMode === "good" ? "Capturing good posture" : "Capturing slouch"}
-          … {captureCount}/{RECAPTURE_SAMPLES}
+          {captureMode === "good"
+            ? `${poseForCount(captureCount).instruction}… ${captureCount}/${GOOD_POSE_TOTAL_SAMPLES}`
+            : `Capturing slouch… ${captureCount}/${RECAPTURE_SAMPLES}`}
         </button>
       ) : (
         <div className="pause-controls">
@@ -216,9 +244,10 @@ export function DevSandboxScreen({
         </div>
       )}
       <p className="hint">
-        1) Sit how you want to sit → “good posture” (score should read ~0). 2) Then
-        slouch the way you want to be warned about → “slouching” tunes the
-        sensitivity to your range.
+        1) “Good posture” walks you through a few comfortable variations (center,
+        lean left, lean right, look down) so normal movement never reads as
+        slouching. 2) Then slouch the way you want to be warned about →
+        “slouching” tunes the sensitivity to your range.
       </p>
 
       <table className="feature-table">

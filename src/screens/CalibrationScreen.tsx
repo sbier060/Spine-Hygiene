@@ -16,10 +16,16 @@ import {
 } from "../posture/calibrationService";
 import { PositionCalibrationCollector } from "../position/positionCalibration";
 import { extractPositionFeatures } from "../position/positionFeatures";
+import {
+  GOOD_POSE_TOTAL_SAMPLES,
+  POSE_SETTLE_MS,
+  poseForCount,
+  poseIndexForCount,
+} from "../posture/goodPoseGuide";
 import type { CameraInfo } from "../hooks/usePoseLoop";
 
-/** Valid frames to gather (~10 s at the sandbox 2 fps cadence). */
-const TARGET_SAMPLES = 20;
+/** Valid frames for the single-pose standing capture (~10 s at 2 fps). */
+const STANDING_TARGET_SAMPLES = 20;
 
 export function CalibrationScreen({
   videoRef,
@@ -39,9 +45,18 @@ export function CalibrationScreen({
 
   const reading = state.latest;
   const isStanding = positionType === "standing";
+  // Sitting calibration is a guided multi-pose capture (center, lean left/right,
+  // look down) so the baseline tolerates the user's natural range. Sampling
+  // pauses briefly after each pose switch so the user has time to move.
+  const settleUntilRef = useRef(0);
+  const lastPoseRef = useRef(0);
+  const targetSamples = isStanding
+    ? STANDING_TARGET_SAMPLES
+    : GOOD_POSE_TOTAL_SAMPLES;
 
   useEffect(() => {
     if (!collecting || !reading) return;
+    if (!isStanding && performance.now() < settleUntilRef.current) return;
     const posture = postureRef.current;
     const position = positionRef.current;
     posture.add(reading.features, reading.quality);
@@ -50,8 +65,15 @@ export function CalibrationScreen({
       reading.quality,
     );
     setCount(posture.validSampleCount);
+    if (!isStanding && posture.validSampleCount < targetSamples) {
+      const pose = poseIndexForCount(posture.validSampleCount);
+      if (pose !== lastPoseRef.current) {
+        lastPoseRef.current = pose;
+        settleUntilRef.current = performance.now() + POSE_SETTLE_MS;
+      }
+    }
 
-    if (posture.validSampleCount >= TARGET_SAMPLES) {
+    if (posture.validSampleCount >= targetSamples) {
       setCollecting(false);
       const info = cameraInfoRef.current;
       const now = Date.now();
@@ -87,16 +109,19 @@ export function CalibrationScreen({
     history,
     isStanding,
     positionType,
+    targetSamples,
   ]);
 
   const start = (): void => {
     postureRef.current.reset();
     positionRef.current.reset();
+    settleUntilRef.current = 0;
+    lastPoseRef.current = 0;
     setCount(0);
     setCollecting(true);
   };
 
-  const progress = Math.min(1, count / TARGET_SAMPLES);
+  const progress = Math.min(1, count / targetSamples);
 
   return (
     <section className="screen calibration">
@@ -106,7 +131,7 @@ export function CalibrationScreen({
       <p>
         {isStanding
           ? "Stand the way you normally would at your desk, then start. You can skip this."
-          : "Sit the way you want to hold yourself, then start calibration."}
+          : "Sit the way you want to hold yourself, then start. It walks you through a few comfortable variations — leaning and looking down included — so normal movement never counts against you."}
       </p>
       <CameraPreview videoRef={videoRef} landmarks={reading?.landmarks ?? []} />
 
@@ -116,7 +141,8 @@ export function CalibrationScreen({
             <div className="progress-bar" style={{ width: `${progress * 100}%` }} />
           </div>
           <p className="hint">
-            Hold still… {count}/{TARGET_SAMPLES} good frames
+            {isStanding ? "Hold still" : poseForCount(count).instruction}…{" "}
+            {count}/{targetSamples} good frames
             {reading && !reading.quality.usable
               ? " (waiting for a clear view)"
               : ""}
