@@ -132,13 +132,15 @@ export class PostureStateMachine {
       return this.settle("poor_candidate");
     }
 
-    // Not poor: good or drifting.
+    // Not poor: good or drifting. (Drifting stays "drifting" even inside the
+    // notification cooldown — "cooldown" is reserved for genuinely poor posture
+    // so the red alert never fires for a light lean.)
     this.poorAccumMs = 0;
     if (smoothedScore >= this.config.driftThreshold) {
       this.driftAccumMs += dt;
       this.goodAccumMs = 0;
       if (this.driftAccumMs >= this.config.driftSustainMs) {
-        return this.settle(this.inCooldown(nowMs) ? "cooldown" : "drifting");
+        return this.settle("drifting");
       }
       return this.settle("good");
     }
