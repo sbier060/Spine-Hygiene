@@ -212,6 +212,12 @@ button.ghost {
   color: var(--poor);
 }
 
+.band-low_confidence {
+  /* Can't see enough of the user — neutral, not a posture judgment. */
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--muted);
+}
+
 .meta-row {
   display: flex;
   justify-content: space-between;

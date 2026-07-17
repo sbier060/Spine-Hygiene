@@ -32,6 +32,13 @@ export interface ManualMark {
   readonly nonce: number;
 }
 
+/**
+ * What the sandbox displays as the current status: a posture band, or
+ * "low_confidence" when detection can't see enough of the user to judge
+ * (out of frame, face turned, too dark).
+ */
+export type DisplayBand = PostureBand | "low_confidence";
+
 /** One live posture reading for the dashboard/overlay. */
 export interface LiveReading {
   readonly features: PostureFeatures;
@@ -39,7 +46,7 @@ export interface LiveReading {
   readonly quality: DetectionQuality;
   readonly rawScore: number;
   readonly smoothedScore: number;
-  readonly band: PostureBand;
+  readonly band: DisplayBand;
   readonly inferenceMs: number;
 }
 

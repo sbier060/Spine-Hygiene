@@ -37,7 +37,7 @@ describe("tray state mapping", () => {
     expect(statusHeadline("good", "unknown")).toBe("Good posture");
     expect(statusHeadline("poor_confirmed", "unknown")).toBe("Slouched");
     // Special states win regardless of position.
-    expect(statusHeadline("low_confidence", "sitting")).toBe("Low confidence");
+    expect(statusHeadline("low_confidence", "sitting")).toBe("Out of frame");
     expect(statusHeadline("good", "away")).toBe("Away");
     expect(statusHeadline("paused", "sitting")).toBe("Paused");
   });

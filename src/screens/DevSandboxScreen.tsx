@@ -70,8 +70,28 @@ function bandText(band: string): string {
       return "Moving";
     case "poor_candidate":
       return "Slouching";
+    case "low_confidence":
+      return "Out of frame";
     default:
       return band;
+  }
+}
+
+/** Friendly wording for why a frame wasn't usable. */
+function reasonText(reason: string | null): string {
+  switch (reason) {
+    case "no_person":
+      return "no one in view";
+    case "missing_shoulder":
+      return "shoulders not visible";
+    case "face_turned":
+      return "face turned away";
+    case "too_few_features":
+      return "not enough of you visible";
+    case "too_much_movement":
+      return "too much movement";
+    default:
+      return "low confidence";
   }
 }
 
@@ -201,11 +221,19 @@ export function DevSandboxScreen({
         <div className="scores">
           <div className="score-block">
             <span className="score-label">Smoothed</span>
-            <span className="score-value">{fmt(reading?.smoothedScore, 2)}</span>
+            <span className="score-value">
+              {reading?.band === "low_confidence"
+                ? "—"
+                : fmt(reading?.smoothedScore, 2)}
+            </span>
           </div>
           <div className="score-block">
             <span className="score-label">Raw</span>
-            <span className="score-value">{fmt(reading?.rawScore, 2)}</span>
+            <span className="score-value">
+              {reading?.band === "low_confidence"
+                ? "—"
+                : fmt(reading?.rawScore, 2)}
+            </span>
           </div>
           <div className={bandClass(reading?.band ?? "good")}>
             {reading ? bandText(reading.band) : "—"}
@@ -213,7 +241,9 @@ export function DevSandboxScreen({
           <div className="meta-row">
             <span>
               Confidence: {fmt(reading?.quality.score, 2)}{" "}
-              {reading && !reading.quality.usable ? `(${reading.quality.reason ?? "low"})` : ""}
+              {reading && !reading.quality.usable
+                ? `(${reasonText(reading.quality.reason)})`
+                : ""}
             </span>
             <span>Inference: {fmt(reading?.inferenceMs, 1)} ms</span>
           </div>

@@ -18,6 +18,7 @@ import { assessDetectionQuality } from "../pose/poseQuality";
 import { ExponentialMovingAverage, StickyValue } from "../pose/smoothing";
 import { scorePosture } from "../posture/postureScorer";
 import type { CalibrationBaseline, PostureBand } from "../posture/postureTypes";
+import type { DisplayBand } from "../app/appState";
 import { statusHeadline, trayTone } from "../tray/trayState";
 import { updateTrayStatus } from "../tray/trayCommands";
 import { cameraErrorFromDom, isSpineIqError } from "../utils/errors";
@@ -47,7 +48,7 @@ export function usePoseLoop(
   const emaRef = useRef(new ExponentialMovingAverage(0.2));
   // Displayed band is sticky so quick reaches/adjustments don't flicker the UI.
   const bandStickyRef = useRef(
-    new StickyValue<PostureBand>("good", BAND_HOLD_MS),
+    new StickyValue<DisplayBand>("good", BAND_HOLD_MS),
   );
   const cameraInfoRef = useRef<CameraInfo | null>(null);
   const baselineRef = useRef<CalibrationBaseline | null>(baseline);
@@ -100,8 +101,16 @@ export function usePoseLoop(
         rawScore = result.score;
         band = result.band;
       }
-      const smoothedScore = emaRef.current.push(rawScore);
-      const displayBand = bandStickyRef.current.update(band, performance.now());
+      // An unusable frame (out of frame, face turned) must not read as
+      // "Good 0.00": show low-confidence and keep the smoother untouched so
+      // recovery isn't dragged down by fake zeros.
+      const smoothedScore = quality.usable
+        ? emaRef.current.push(rawScore)
+        : (emaRef.current.current ?? 0);
+      const displayBand = bandStickyRef.current.update(
+        quality.usable ? band : "low_confidence",
+        performance.now(),
+      );
       dispatch({
         type: "set_reading",
         reading: {

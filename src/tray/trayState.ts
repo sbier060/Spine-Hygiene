@@ -24,7 +24,7 @@ export function postureLabel(state: PostureState): string {
     case "cooldown":
       return "Hunching";
     case "low_confidence":
-      return "Low confidence";
+      return "Out of frame";
     case "away":
       return "Away";
     case "paused":
@@ -62,7 +62,7 @@ export function statusHeadline(
 ): string {
   if (state === "paused") return "Paused";
   if (state === "away" || position === "away") return "Away";
-  if (state === "low_confidence") return "Low confidence";
+  if (state === "low_confidence") return "Out of frame";
   if (state === "drifting") return "Moving";
 
   const posture =
