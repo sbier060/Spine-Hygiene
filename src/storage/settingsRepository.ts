@@ -28,9 +28,9 @@ export interface SettingsData {
 export const DEFAULT_SETTINGS: SettingsData = {
   sensitivity: "balanced",
   deviationSaturation: 4,
-  // Sustained slouch before the red alert / notification fires. Snappier than the
-  // 60 s spec default for a responsive personal nudge.
-  poorPersistenceSeconds: 20,
+  // Sustained slouch before the red alert / notification fires. Kept short so
+  // the popup lands within a few seconds of a real slouch.
+  poorPersistenceSeconds: 5,
   postureCooldownMinutes: 15,
   sittingReminderEnabled: true,
   sittingReminderMinutes: 50,
@@ -49,7 +49,9 @@ export interface KeyValueStore {
   setItem(key: string, value: string): void;
 }
 
-const STORAGE_KEY = "spine-iq.settings.v2";
+const STORAGE_KEY = "spine-iq.settings.v3";
+/** Prior version; migrated on first load (alert persistence re-defaulted). */
+const LEGACY_KEY_V2 = "spine-iq.settings.v2";
 
 function browserStore(): KeyValueStore | null {
   if (typeof localStorage === "undefined") return null;
@@ -76,12 +78,30 @@ export class SettingsRepository {
   load(): SettingsData {
     if (!this.store) return DEFAULT_SETTINGS;
     const raw = this.store.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_SETTINGS;
-    try {
-      return coerceSettings(JSON.parse(raw));
-    } catch {
-      return DEFAULT_SETTINGS;
+    if (raw) {
+      try {
+        return coerceSettings(JSON.parse(raw));
+      } catch {
+        return DEFAULT_SETTINGS;
+      }
     }
+    // Migrate v2: keep the user's trained values (deviation saturation etc.)
+    // but re-default the alert persistence — no UI exposes it yet, and the old
+    // stored 20 s would otherwise pin every migrated install to the slow alert.
+    const legacy = this.store.getItem(LEGACY_KEY_V2);
+    if (legacy) {
+      try {
+        const migrated: SettingsData = {
+          ...coerceSettings(JSON.parse(legacy)),
+          poorPersistenceSeconds: DEFAULT_SETTINGS.poorPersistenceSeconds,
+        };
+        this.save(migrated);
+        return migrated;
+      } catch {
+        return DEFAULT_SETTINGS;
+      }
+    }
+    return DEFAULT_SETTINGS;
   }
 
   save(settings: SettingsData): void {

@@ -39,6 +39,26 @@ describe("SettingsRepository", () => {
     expect(repo.load()).toEqual(DEFAULT_SETTINGS);
   });
 
+  it("migrates v2 settings: keeps trained values, re-defaults persistence", () => {
+    const store = mapStore();
+    store.setItem(
+      "spine-iq.settings.v2",
+      JSON.stringify({
+        ...DEFAULT_SETTINGS,
+        deviationSaturation: 7.5,
+        poorPersistenceSeconds: 20,
+      }),
+    );
+    const repo = new SettingsRepository(store);
+    const loaded = repo.load();
+    expect(loaded.deviationSaturation).toBe(7.5);
+    expect(loaded.poorPersistenceSeconds).toBe(
+      DEFAULT_SETTINGS.poorPersistenceSeconds,
+    );
+    // Migration persists to the new key, so a later save/load keeps it.
+    expect(store.getItem("spine-iq.settings.v3")).not.toBeNull();
+  });
+
   it("coerces unknown/mistyped fields to defaults", () => {
     const result = coerceSettings({
       sensitivity: "high",
