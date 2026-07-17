@@ -3,6 +3,7 @@ import {
   ExponentialMovingAverage,
   RollingMedian,
   Hysteresis,
+  StickyValue,
   median,
   standardDeviation,
   isInlier,
@@ -38,6 +39,43 @@ describe("ExponentialMovingAverage", () => {
     const plain = new ExponentialMovingAverage(0.2);
     plain.push(0);
     expect(plain.push(1, 500)).toBeCloseTo(0.2, 10);
+  });
+});
+
+describe("StickyValue", () => {
+  it("holds the displayed value until the candidate persists for holdMs", () => {
+    const s = new StickyValue("good", 3000);
+    expect(s.update("drifting", 0)).toBe("good");
+    expect(s.update("drifting", 1500)).toBe("good");
+    expect(s.update("drifting", 3000)).toBe("drifting");
+  });
+
+  it("ignores a brief flicker that reverts before holdMs", () => {
+    const s = new StickyValue("good", 3000);
+    s.update("drifting", 0);
+    s.update("drifting", 2000);
+    // Back to good before the hold elapsed → pending is dropped entirely.
+    expect(s.update("good", 2500)).toBe("good");
+    // A fresh drift must run the full hold again.
+    expect(s.update("drifting", 3000)).toBe("good");
+    expect(s.update("drifting", 5900)).toBe("good");
+    expect(s.update("drifting", 6000)).toBe("drifting");
+  });
+
+  it("restarts the hold when the pending candidate changes", () => {
+    const s = new StickyValue("good", 3000);
+    s.update("drifting", 0);
+    expect(s.update("poor_candidate", 2900)).toBe("good");
+    expect(s.update("poor_candidate", 5800)).toBe("good");
+    expect(s.update("poor_candidate", 5900)).toBe("poor_candidate");
+  });
+
+  it("switches instantly for immediate values", () => {
+    const s = new StickyValue<string>("good", 3000, ["poor_confirmed"]);
+    expect(s.update("poor_confirmed", 10)).toBe("poor_confirmed");
+    // Leaving an immediate value still honors the hold.
+    expect(s.update("good", 20)).toBe("poor_confirmed");
+    expect(s.update("good", 3020)).toBe("good");
   });
 });
 

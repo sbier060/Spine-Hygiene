@@ -15,7 +15,7 @@ import { captureFrameBitmap } from "../camera/frameSampler";
 import { PoseEngine } from "../pose/poseLandmarker";
 import { extractFeatures } from "../pose/featureExtractor";
 import { assessDetectionQuality } from "../pose/poseQuality";
-import { ExponentialMovingAverage } from "../pose/smoothing";
+import { ExponentialMovingAverage, StickyValue } from "../pose/smoothing";
 import { scorePosture } from "../posture/postureScorer";
 import type { CalibrationBaseline, PostureBand } from "../posture/postureTypes";
 import { statusHeadline, trayTone } from "../tray/trayState";
@@ -25,6 +25,9 @@ import type { AppAction } from "../app/appState";
 
 /** Fixed sandbox cadence (~2 fps). Adaptive inference arrives in Phase 2. */
 const SANDBOX_PERIOD_MS = 500;
+
+/** A new band must hold this long before the displayed status changes. */
+const BAND_HOLD_MS = 2500;
 
 export interface CameraInfo {
   readonly deviceId: string | null;
@@ -42,6 +45,10 @@ export function usePoseLoop(
   const cameraRef = useRef<CameraManager | null>(null);
   const engineRef = useRef<PoseEngine | null>(null);
   const emaRef = useRef(new ExponentialMovingAverage(0.2));
+  // Displayed band is sticky so quick reaches/adjustments don't flicker the UI.
+  const bandStickyRef = useRef(
+    new StickyValue<PostureBand>("good", BAND_HOLD_MS),
+  );
   const cameraInfoRef = useRef<CameraInfo | null>(null);
   const baselineRef = useRef<CalibrationBaseline | null>(baseline);
   baselineRef.current = baseline;
@@ -94,6 +101,7 @@ export function usePoseLoop(
         band = result.band;
       }
       const smoothedScore = emaRef.current.push(rawScore);
+      const displayBand = bandStickyRef.current.update(band, performance.now());
       dispatch({
         type: "set_reading",
         reading: {
@@ -102,17 +110,17 @@ export function usePoseLoop(
           quality,
           rawScore,
           smoothedScore,
-          band,
+          band: displayBand,
           inferenceMs,
         },
       });
       // Keep the menu-bar dot/label in sync with the live sandbox reading (band
       // is a subset of PostureState; position is unknown here).
       void updateTrayStatus({
-        postureLabel: statusHeadline(band, "unknown"),
+        postureLabel: statusHeadline(displayBand, "unknown"),
         positionLabel: "Unknown",
         durationLabel: "",
-        tone: trayTone(band),
+        tone: trayTone(displayBand),
       });
     }
 
@@ -152,6 +160,7 @@ export function usePoseLoop(
       cancelled = true;
       if (timer) clearTimeout(timer);
       emaRef.current.reset();
+      bandStickyRef.current.reset("good");
     };
   }, [running, videoRef, dispatch]);
 

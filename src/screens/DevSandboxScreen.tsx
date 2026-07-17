@@ -55,6 +55,20 @@ function bandClass(band: string): string {
   return `band band-${band}`;
 }
 
+/** Friendly wording for the band chip (raw band names are internal). */
+function bandText(band: string): string {
+  switch (band) {
+    case "good":
+      return "Good";
+    case "drifting":
+      return "Moving";
+    case "poor_candidate":
+      return "Slouching";
+    default:
+      return band;
+  }
+}
+
 export function DevSandboxScreen({
   videoRef,
 }: {
@@ -167,7 +181,7 @@ export function DevSandboxScreen({
             <span className="score-value">{fmt(reading?.rawScore, 2)}</span>
           </div>
           <div className={bandClass(reading?.band ?? "good")}>
-            {reading?.band ?? "—"}
+            {reading ? bandText(reading.band) : "—"}
           </div>
           <div className="meta-row">
             <span>

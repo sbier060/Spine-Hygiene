@@ -124,6 +124,57 @@ export function isInlier(
 }
 
 /**
+ * Debounces a *displayed* state: a new value must persist for `holdMs` before
+ * it replaces the current one, so brief flickers (a reach, an adjustment)
+ * never reach the UI. Values listed in `immediate` switch without waiting —
+ * alert states must never be delayed by presentation smoothing.
+ */
+export class StickyValue<T> {
+  private displayed: T;
+  private pending: T | null = null;
+  private pendingSinceMs = 0;
+
+  constructor(
+    initial: T,
+    private readonly holdMs: number,
+    private readonly immediate: readonly T[] = [],
+  ) {
+    this.displayed = initial;
+  }
+
+  update(candidate: T, nowMs: number): T {
+    if (candidate === this.displayed) {
+      this.pending = null;
+      return this.displayed;
+    }
+    if (this.immediate.includes(candidate)) {
+      this.displayed = candidate;
+      this.pending = null;
+      return this.displayed;
+    }
+    if (this.pending !== candidate) {
+      this.pending = candidate;
+      this.pendingSinceMs = nowMs;
+      return this.displayed;
+    }
+    if (nowMs - this.pendingSinceMs >= this.holdMs) {
+      this.displayed = candidate;
+      this.pending = null;
+    }
+    return this.displayed;
+  }
+
+  get current(): T {
+    return this.displayed;
+  }
+
+  reset(initial: T): void {
+    this.displayed = initial;
+    this.pending = null;
+  }
+}
+
+/**
  * Two-threshold (Schmitt-trigger) gate that prevents rapid flapping between
  * states. Enters the "high" state only above `enter`, and returns to "low" only
  * below `exit` (with `exit < enter`). See spec: enter poor >0.60, exit <0.40.

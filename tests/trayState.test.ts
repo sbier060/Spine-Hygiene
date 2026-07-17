@@ -18,7 +18,7 @@ describe("tray state mapping", () => {
 
   it("maps posture to an icon tone (not color-only)", () => {
     expect(trayTone("good")).toBe("normal");
-    expect(trayTone("drifting")).toBe("warning");
+    expect(trayTone("drifting")).toBe("normal");
     expect(trayTone("poor_confirmed")).toBe("alert");
     expect(trayTone("paused")).toBe("paused");
   });
@@ -32,7 +32,7 @@ describe("tray state mapping", () => {
     expect(statusHeadline("good", "sitting")).toBe("Sitting well");
     expect(statusHeadline("good", "standing")).toBe("Standing well");
     expect(statusHeadline("poor_confirmed", "standing")).toBe("Standing slouched");
-    expect(statusHeadline("drifting", "sitting")).toBe("Sitting drifting");
+    expect(statusHeadline("drifting", "sitting")).toBe("Moving");
     // Unknown position → posture only.
     expect(statusHeadline("good", "unknown")).toBe("Good posture");
     expect(statusHeadline("poor_confirmed", "unknown")).toBe("Slouched");

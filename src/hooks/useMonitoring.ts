@@ -32,6 +32,7 @@ import {
   formatDuration,
 } from "../tray/trayState";
 import { updateTrayStatus, setPostureAlert } from "../tray/trayCommands";
+import { StickyValue } from "../pose/smoothing";
 import type { CalibrationBaseline, PostureState } from "../posture/postureTypes";
 import type { PositionBaseline } from "../position/positionCalibration";
 import type { PositionState } from "../position/positionTypes";
@@ -41,6 +42,19 @@ import type { AppAction, ManualMark } from "../app/appState";
 
 /** Persist the session summary at most this often (never per frame). */
 const FLUSH_INTERVAL_MS = 60_000;
+
+/**
+ * A new posture state must hold this long before the DISPLAYED status (tray +
+ * screen) changes, so brief movement never flickers the label. Alert and pause
+ * states switch instantly — presentation smoothing must never delay the red
+ * popup.
+ */
+const STATUS_HOLD_MS = 4000;
+const IMMEDIATE_STATES: readonly PostureState[] = [
+  "poor_confirmed",
+  "cooldown",
+  "paused",
+];
 
 /** Verbose monitoring diagnostics to the console (dev only). */
 const DEBUG_MONITOR = true;
@@ -89,6 +103,9 @@ export function useMonitoring(
     collector: PositionCalibrationCollector;
   } | null>(null);
   const alertActiveRef = useRef(false);
+  const stickyStateRef = useRef(
+    new StickyValue<PostureState>("good", STATUS_HOLD_MS, IMMEDIATE_STATES),
+  );
   const configRef = useRef<PostureMachineConfig>(
     options.machineConfig ?? DEFAULT_POSTURE_MACHINE_CONFIG,
   );
@@ -137,6 +154,7 @@ export function useMonitoring(
           paused: true,
           inferenceMs: 0,
         });
+        stickyStateRef.current.update(result.state, now);
         dispatch({ type: "set_monitor", monitor: result });
         historyRef.current.record(now, {
           position: result.position,
@@ -219,11 +237,18 @@ export function useMonitoring(
         paused: false,
         inferenceMs,
       });
-      dispatch({ type: "set_monitor", monitor: result });
+      // Present a debounced state so the tray/screen don't flap on brief
+      // movement; the raw state still drives notifications and scheduling.
+      const displayState = stickyStateRef.current.update(result.state, now);
+      dispatch({
+        type: "set_monitor",
+        monitor: { ...result, state: displayState },
+      });
       dbg(
         "tick →",
         "present:", result.present,
         "state:", result.state,
+        "shown:", displayState,
         "pos:", result.position,
         "nextMs:", result.nextIntervalMs,
       );
@@ -296,15 +321,17 @@ export function useMonitoring(
       }
 
       // Big red alert: pop the window to the front while slouching is confirmed,
-      // and drop it once posture recovers.
+      // and drop it once posture recovers. Driven by the displayed state: alert
+      // entry is immediate (alert states bypass the hold), and recovery keeps
+      // the popup up for the hold so it never flashes away on one good frame.
       const shouldAlert =
-        result.state === "poor_confirmed" || result.state === "cooldown";
+        displayState === "poor_confirmed" || displayState === "cooldown";
       if (shouldAlert !== alertActiveRef.current) {
         alertActiveRef.current = shouldAlert;
         void setPostureAlert(shouldAlert);
       }
 
-      void syncTray(result.state, result.position, now);
+      void syncTray(displayState, result.position, now);
       void scheduleNext(result.nextIntervalMs);
     }
 
@@ -361,6 +388,7 @@ export function useMonitoring(
     if (running) return;
     cameraRef.current?.stop();
     controllerRef.current?.reset();
+    stickyStateRef.current.reset("good");
     const video = videoRef.current;
     if (video) video.srcObject = null;
   }, [running, videoRef]);

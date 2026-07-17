@@ -17,7 +17,8 @@ export function postureLabel(state: PostureState): string {
     case "good":
       return "Good";
     case "drifting":
-      return "Drifting";
+      // Behavioral framing: a sustained deviation is "moving", not a warning.
+      return "Moving";
     case "poor_candidate":
     case "poor_confirmed":
     case "cooldown":
@@ -35,9 +36,9 @@ export function postureLabel(state: PostureState): string {
 export function trayTone(state: PostureState): TrayTone {
   switch (state) {
     case "good":
-      return "normal";
     case "drifting":
-      return "warning";
+      // Moving is not a posture problem — keep the dot green, no warning color.
+      return "normal";
     case "poor_candidate":
     case "poor_confirmed":
     case "cooldown":
@@ -62,24 +63,19 @@ export function statusHeadline(
   if (state === "paused") return "Paused";
   if (state === "away" || position === "away") return "Away";
   if (state === "low_confidence") return "Low confidence";
+  if (state === "drifting") return "Moving";
 
   const posture =
     state === "poor_candidate" ||
     state === "poor_confirmed" ||
     state === "cooldown"
       ? "slouched"
-      : state === "drifting"
-        ? "drifting"
-        : "well";
+      : "well";
 
   if (position === "sitting") return `Sitting ${posture}`;
   if (position === "standing") return `Standing ${posture}`;
   // Position unknown → describe posture on its own.
-  return posture === "well"
-    ? "Good posture"
-    : posture === "drifting"
-      ? "Drifting"
-      : "Slouched";
+  return posture === "well" ? "Good posture" : "Slouched";
 }
 
 export function positionLabel(position: PositionState): string {

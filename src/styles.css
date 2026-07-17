@@ -202,8 +202,9 @@ button.ghost {
 }
 
 .band-drifting {
-  background: rgba(246, 196, 83, 0.15);
-  color: var(--drift);
+  /* Moving is neutral — no warning color. */
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--muted);
 }
 
 .band-poor_candidate {
