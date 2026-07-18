@@ -39,6 +39,8 @@ import {
 } from "../tray/trayState";
 import { updateTrayStatus, setPostureAlert } from "../tray/trayCommands";
 import { speak, slouchLine } from "../audio/voice";
+import { systemIdleSeconds } from "../system/systemIdle";
+import { isTauriRuntime } from "../storage/database";
 import { SettingsRepository } from "../storage/settingsRepository";
 import { StickyValue } from "../pose/smoothing";
 import type { CalibrationBaseline, PostureState } from "../posture/postureTypes";
@@ -63,6 +65,18 @@ const IMMEDIATE_STATES: readonly PostureState[] = [
   "cooldown",
   "paused",
 ];
+
+/**
+ * Away-standby: once the user has been away this long, release the camera
+ * entirely (green light OFF). Input activity wakes it instantly; a failsafe
+ * camera peek runs once a minute in case they return without touching anything.
+ */
+const STANDBY_AFTER_AWAY_MS = 10_000;
+const STANDBY_POLL_MS = 3000;
+/** Input within this window counts as "the user is back". */
+const STANDBY_WAKE_IDLE_S = 2.5;
+/** Polls between failsafe camera peeks (20 × 3s = 60s). */
+const STANDBY_FAILSAFE_POLLS = 20;
 
 /** Verbose monitoring diagnostics to the console (dev only). */
 const DEBUG_MONITOR = true;
@@ -120,6 +134,9 @@ export function useMonitoring(
   const mappingRef = useRef<boolean | null>(null);
   mappingRef.current ??=
     settingsRepoRef.current.load().backgroundDownMeansStanding;
+  // Away-standby bookkeeping: when away began, and how many standby polls ran.
+  const awaySinceRef = useRef<number | null>(null);
+  const standbyPollsRef = useRef(0);
   const stickyStateRef = useRef(
     new StickyValue<PostureState>("good", STATUS_HOLD_MS, IMMEDIATE_STATES),
   );
@@ -382,7 +399,66 @@ export function useMonitoring(
       }
 
       void syncTray(displayState, result.position, now);
+
+      // Away-standby: after sustained absence, release the camera entirely so
+      // the green light goes off. Input activity (or the failsafe peek) wakes it.
+      if (result.state === "away" && isTauriRuntime()) {
+        awaySinceRef.current ??= now;
+        if (now - awaySinceRef.current >= STANDBY_AFTER_AWAY_MS) {
+          dbg("away sustained → releasing camera (standby)");
+          camera.stop();
+          const v = videoRef.current;
+          if (v) v.srcObject = null;
+          prevGrayRef.current = null;
+          standbyPollsRef.current = 0;
+          timer = setTimeout(() => void standbyTick(), STANDBY_POLL_MS);
+          return;
+        }
+      } else {
+        awaySinceRef.current = null;
+      }
+
       void scheduleNext(result.nextIntervalMs);
+    }
+
+    /**
+     * Camera-off standby loop: poll system input idle instead of frames. Wake
+     * on input, or peek with the camera once a minute as a failsafe (also
+     * covers the case where input idle isn't readable).
+     */
+    async function standbyTick(): Promise<void> {
+      if (cancelled) return;
+      const now = performance.now();
+      if (pausedRef.current) {
+        // Pause takes over its own camera-released path.
+        awaySinceRef.current = null;
+        void tick();
+        return;
+      }
+      historyRef.current.record(now, {
+        position: "away",
+        postureState: "away",
+        postureNotified: false,
+        positionNotified: false,
+        paused: false,
+      });
+      standbyPollsRef.current += 1;
+      const idle = await systemIdleSeconds();
+      if (cancelled) return;
+      const inputWake = idle !== null && idle < STANDBY_WAKE_IDLE_S;
+      const failsafeWake =
+        standbyPollsRef.current >= STANDBY_FAILSAFE_POLLS;
+      if (inputWake || failsafeWake) {
+        dbg(
+          inputWake
+            ? "input detected → waking camera"
+            : "standby failsafe → camera peek",
+        );
+        awaySinceRef.current = null;
+        void tick(); // camera restarts inside the normal loop
+        return;
+      }
+      timer = setTimeout(() => void standbyTick(), STANDBY_POLL_MS);
     }
 
     async function syncTray(

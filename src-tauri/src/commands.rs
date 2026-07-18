@@ -26,6 +26,12 @@ pub fn speak(text: String, voice: Option<String>) {
     app_lifecycle::speak_text(&text, voice.as_deref());
 }
 
+// Async so the (brief) ioreg call never runs on the main thread.
+#[tauri::command]
+pub async fn system_idle_seconds() -> f64 {
+    app_lifecycle::system_idle_seconds()
+}
+
 #[tauri::command]
 pub fn update_tray_status(
     app: tauri::AppHandle,

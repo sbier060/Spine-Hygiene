@@ -41,6 +41,36 @@ pub fn configure(app: &mut App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Seconds since the last keyboard/mouse input, read from IOKit's HIDIdleTime
+/// (no special permissions required). Used to wake the camera from away-standby
+/// the moment the user touches anything. Returns a negative value when the
+/// reading is unavailable so callers can apply their own fallback.
+pub fn system_idle_seconds() -> f64 {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(out) = std::process::Command::new("ioreg")
+            .args(["-c", "IOHIDSystem", "-d", "4"])
+            .output()
+        {
+            let text = String::from_utf8_lossy(&out.stdout);
+            for line in text.lines() {
+                if line.contains("HIDIdleTime") {
+                    if let Some(value) = line.rsplit('=').next() {
+                        if let Ok(ns) = value.trim().parse::<u64>() {
+                            return ns as f64 / 1_000_000_000.0;
+                        }
+                    }
+                }
+            }
+        }
+        -1.0
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        -1.0
+    }
+}
+
 /// Reveal and focus the main window from anywhere (tray, notifications).
 pub fn show_main_window<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
