@@ -10,6 +10,10 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# `tauri icon` (below) regenerates tracked icon files; discard those local
+# regenerations before pulling or git refuses to merge over them.
+git checkout -- src-tauri/icons 2>/dev/null || true
+
 git pull
 
 # Start clean: a partial/corrupt target from an earlier failed (disk-full)
