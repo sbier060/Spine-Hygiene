@@ -178,6 +178,23 @@ export function DashboardScreen(): JSX.Element {
         <Stat label="Reminders" value={String(stats?.postureNotificationCount ?? 0)} />
       </div>
 
+      {/* Position corrections: each press also teaches the classifier this
+          position's signature from the next few good frames. */}
+      {running && (
+        <div className="pause-controls">
+          <button
+            onClick={() => dispatch({ type: "mark_position", position: "sitting" })}
+          >
+            I’m sitting
+          </button>
+          <button
+            onClick={() => dispatch({ type: "mark_position", position: "standing" })}
+          >
+            I’m standing
+          </button>
+        </div>
+      )}
+
       <div className="pause-controls">
         {running ? (
           <button onClick={() => dispatch({ type: "pause_monitoring", untilMs: Date.now() + 30 * 60_000 })}>
