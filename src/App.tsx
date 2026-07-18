@@ -147,6 +147,7 @@ function AppShell(): JSX.Element {
     },
     state.manualMark,
     state.slouchAck,
+    state.postureFeedback,
     history,
     dispatch,
     {
@@ -262,6 +263,17 @@ function AppShell(): JSX.Element {
           </span>
           <div className="slouch-overlay-actions">
             <button onClick={fixedPosture}>I fixed my posture</button>
+            <button
+              onClick={() => {
+                // False positive: hide instantly; the monitor logs it and
+                // absorbs this pose into the good baseline.
+                setAlertDismissed(true);
+                dispatch({ type: "give_posture_feedback", kind: "not_slouching" });
+                void setPostureAlert(false);
+              }}
+            >
+              I’m not slouching
+            </button>
             {!voiceMuted && <button onClick={muteVoice}>Mute voice</button>}
           </div>
         </div>

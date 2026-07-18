@@ -54,6 +54,15 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
      source TEXT NOT NULL,
      created_at INTEGER NOT NULL
    )`,
+  `CREATE TABLE IF NOT EXISTS posture_feedback (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     verdict TEXT NOT NULL,
+     posture_state TEXT NOT NULL,
+     smoothed_score REAL NOT NULL,
+     features_json TEXT,
+     place_id INTEGER,
+     created_at INTEGER NOT NULL
+   )`,
   `CREATE TABLE IF NOT EXISTS places (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      name TEXT NOT NULL,

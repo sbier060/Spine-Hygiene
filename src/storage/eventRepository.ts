@@ -56,8 +56,33 @@ export class EventRepository {
     );
   }
 
+  /** One labeled feedback sample — the training data for future models. */
+  async insertPostureFeedback(entry: {
+    readonly verdict: string;
+    readonly postureState: string;
+    readonly smoothedScore: number;
+    readonly featuresJson: string | null;
+    readonly placeId: number | null;
+    readonly atMs: number;
+  }): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO posture_feedback
+         (verdict, posture_state, smoothed_score, features_json, place_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        entry.verdict,
+        entry.postureState,
+        entry.smoothedScore,
+        entry.featuresJson,
+        entry.placeId,
+        entry.atMs,
+      ],
+    );
+  }
+
   async deleteAll(): Promise<void> {
     await this.db.execute("DELETE FROM position_events");
     await this.db.execute("DELETE FROM posture_events");
+    await this.db.execute("DELETE FROM posture_feedback");
   }
 }

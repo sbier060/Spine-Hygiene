@@ -264,6 +264,20 @@ export function DashboardScreen(): JSX.Element {
           >
             I’m standing
           </button>
+          {monitor &&
+            (monitor.state === "good" || monitor.state === "drifting") && (
+              <button
+                className="ghost"
+                onClick={() =>
+                  dispatch({
+                    type: "give_posture_feedback",
+                    kind: "actually_slouching",
+                  })
+                }
+              >
+                It missed my slouch
+              </button>
+            )}
         </div>
       )}
 

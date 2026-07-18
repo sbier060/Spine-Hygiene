@@ -163,3 +163,32 @@ describe("buildBaseline", () => {
     expect(baseline.features.torsoAngle).toBeUndefined();
   });
 });
+
+describe("absorbGoodSample (I'm-not-slouching feedback)", () => {
+  it("a flagged pose scores lower after being absorbed as good", async () => {
+    const { absorbGoodSample, buildBaseline } = await import(
+      "../src/posture/calibrationService"
+    );
+    const { extractFeatures } = await import("../src/pose/featureExtractor");
+    const { uprightPose, hunchedPose } = await import("./fixtures");
+    const baseline = buildBaseline(
+      Array.from({ length: 12 }, () => extractFeatures(uprightPose())),
+      {
+        positionType: "sitting",
+        cameraWidth: 640,
+        cameraHeight: 360,
+        cameraDeviceId: null,
+        createdAt: 0,
+      },
+    );
+    const pose = extractFeatures(hunchedPose());
+    const before = scorePosture(pose, baseline).score;
+    let widened = baseline;
+    // Two corrections, as a user would give when repeatedly flagged wrongly.
+    widened = absorbGoodSample(widened, pose);
+    widened = absorbGoodSample(widened, pose);
+    const after = scorePosture(pose, widened).score;
+    expect(after).toBeLessThan(before);
+    expect(after).toBeLessThan(0.6); // no longer enters the poor band
+  });
+});

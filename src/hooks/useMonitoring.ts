@@ -22,6 +22,9 @@ import type { Landmark } from "../pose/landmarkTypes";
 import { extractPositionFeatures } from "../position/positionFeatures";
 import { PositionCalibrationCollector } from "../position/positionCalibration";
 import { MonitoringController } from "../monitoring/monitoringController";
+import { extractFeatures } from "../pose/featureExtractor";
+import { computeDeviationSaturation } from "../posture/postureScorer";
+import { absorbGoodSample } from "../posture/calibrationService";
 import type { PostureMachineConfig } from "../posture/postureStateMachine";
 import { DEFAULT_POSTURE_MACHINE_CONFIG } from "../posture/postureStateMachine";
 import type { ScoreOptions } from "../posture/postureScorer";
@@ -53,7 +56,7 @@ import type { PositionBaseline } from "../position/positionCalibration";
 import type { PositionState } from "../position/positionTypes";
 import type { HistoryStore } from "../storage/historyStore";
 import { isSpineIqError } from "../utils/errors";
-import type { AppAction, ManualMark } from "../app/appState";
+import type { AppAction, AppState, ManualMark } from "../app/appState";
 
 /** Persist the session summary at most this often (never per frame). */
 const FLUSH_INTERVAL_MS = 60_000;
@@ -118,6 +121,7 @@ export function useMonitoring(
   baselines: MonitoringBaselines,
   manualMark: ManualMark | null,
   slouchAck: number,
+  postureFeedback: AppState["postureFeedback"],
   history: HistoryStore,
   dispatch: Dispatch<AppAction>,
   options: MonitoringOptions = {},
@@ -160,6 +164,9 @@ export function useMonitoring(
   // Unknown-scene detection → "looks like a new spot" flow.
   const unknownSceneSinceRef = useRef<number | null>(null);
   const newPlaceHintedRef = useRef(false);
+  // Latest landmarks/result, for detection-feedback learning.
+  const lastLandmarksRef = useRef<readonly Landmark[]>([]);
+  const lastResultRef = useRef<{ state: string; score: number } | null>(null);
   const stickyStateRef = useRef(
     new StickyValue<PostureState>("good", STATUS_HOLD_MS, IMMEDIATE_STATES),
   );
@@ -373,6 +380,11 @@ export function useMonitoring(
         inferenceMs,
         backgroundMotion,
       });
+      lastLandmarksRef.current = landmarks;
+      lastResultRef.current = {
+        state: result.state,
+        score: result.smoothedScore,
+      };
       // Present a debounced state so the tray/screen don't flap on brief
       // movement; the raw state still drives notifications and scheduling.
       const displayState = stickyStateRef.current.update(result.state, now);
@@ -614,8 +626,73 @@ export function useMonitoring(
       alertActiveRef.current = false;
       void setPostureAlert(false);
     }
+    // "I fixed my posture" = the detection was RIGHT — log a confirmation.
+    const last = lastResultRef.current;
+    void historyRef.current.recordPostureFeedback({
+      verdict: "confirmed",
+      state: last?.state ?? "unknown",
+      score: last?.score ?? 0,
+      featuresJson: null,
+    });
     dbg("slouch acknowledged by user");
   }, [slouchAck]);
+
+  // Detection feedback: every verdict is stored as a labeled sample, and the
+  // model tightens immediately — false positives widen the good baseline,
+  // false negatives raise the sensitivity so the missed slouch would score.
+  const lastFeedbackNonceRef = useRef(0);
+  useEffect(() => {
+    if (!postureFeedback || postureFeedback.nonce === lastFeedbackNonceRef.current) {
+      return;
+    }
+    lastFeedbackNonceRef.current = postureFeedback.nonce;
+    const landmarks = lastLandmarksRef.current;
+    const features = landmarks.length > 0 ? extractFeatures(landmarks) : null;
+    const last = lastResultRef.current;
+    void historyRef.current.recordPostureFeedback({
+      verdict:
+        postureFeedback.kind === "not_slouching"
+          ? "false_positive"
+          : "false_negative",
+      state: last?.state ?? "unknown",
+      score: last?.score ?? 0,
+      featuresJson: features ? JSON.stringify(features) : null,
+    });
+
+    const base = baselinesRef.current.posture;
+    if (postureFeedback.kind === "not_slouching") {
+      // End the episode, then teach: this pose is GOOD.
+      controllerRef.current?.acknowledgeSlouch();
+      stickyStateRef.current.force("good");
+      if (alertActiveRef.current) {
+        alertActiveRef.current = false;
+        void setPostureAlert(false);
+      }
+      if (base && features) {
+        const widened = absorbGoodSample(base, features);
+        dispatch({ type: "set_baseline", baseline: widened });
+        void historyRef.current.saveCalibration(
+          {
+            positionType: "sitting",
+            postureBaseline: widened,
+            positionBaseline: baselinesRef.current.positionSitting,
+          },
+          Date.now(),
+        );
+        dbg("feedback: absorbed pose into the good baseline");
+      }
+    } else if (base && features) {
+      // This pose is a SLOUCH the model missed: tighten sensitivity so it scores.
+      const sat = computeDeviationSaturation(features, base);
+      if (sat !== null) {
+        const current = settingsRepoRef.current?.load().deviationSaturation ?? 4;
+        const next = Math.min(current, sat);
+        dispatch({ type: "set_saturation", value: next });
+        settingsRepoRef.current?.update({ deviationSaturation: next });
+        dbg("feedback: sensitivity tightened to", next.toFixed(2));
+      }
+    }
+  }, [postureFeedback, dispatch]);
 
   // Apply manual sitting/standing corrections immediately, and start learning
   // that position's signature so classification becomes automatic afterward.

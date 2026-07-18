@@ -75,6 +75,30 @@ export function buildBaseline(
 }
 
 /**
+ * Feedback learning: the user said "I'm not slouching" while this pose was
+ * flagged. Pull the baseline median toward the pose and widen the tolerated
+ * deviation so the same pose stops triggering — a couple of corrections make
+ * a recurring false positive read as good.
+ */
+export function absorbGoodSample(
+  baseline: CalibrationBaseline,
+  sample: PostureFeatures,
+): CalibrationBaseline {
+  const features: Partial<Record<ScoredFeatureKey, FeatureBaseline>> = {
+    ...baseline.features,
+  };
+  for (const key of SCORED_FEATURE_KEYS) {
+    const value = sample[key];
+    const fb = baseline.features[key];
+    if (value === null || !fb) continue;
+    const median = fb.median + 0.25 * (value - fb.median);
+    const deviation = Math.max(fb.deviation, Math.abs(value - median) * 0.8);
+    features[key] = { median, deviation };
+  }
+  return { ...baseline, features };
+}
+
+/**
  * Stateful collector used by the calibration screen. Accepts frames one at a
  * time, keeping only the ones whose detection quality is usable.
  */

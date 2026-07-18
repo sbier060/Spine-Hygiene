@@ -230,6 +230,24 @@ export class HistoryStore {
   }
 
   /** Save a calibration for the ACTIVE place. */
+  /** Record one posture-feedback verdict (labeled sample for future models). */
+  async recordPostureFeedback(entry: {
+    readonly verdict: "false_positive" | "false_negative" | "confirmed";
+    readonly state: string;
+    readonly score: number;
+    readonly featuresJson: string | null;
+  }): Promise<void> {
+    if (!this.events) return;
+    await this.events.insertPostureFeedback({
+      verdict: entry.verdict,
+      postureState: entry.state,
+      smoothedScore: entry.score,
+      featuresJson: entry.featuresJson,
+      placeId: this.activePlace,
+      atMs: Date.now(),
+    });
+  }
+
   async saveCalibration(profile: CalibrationProfile, nowMs: number): Promise<void> {
     if (this.calibrations) {
       await this.calibrations.save(profile, nowMs, this.activePlace);
