@@ -1,6 +1,6 @@
 [package]
 name = "spine-iq"
-version = "0.2.3"
+version = "0.2.4"
 description = "Spine-IQ — local, private posture & sitting/standing wellness utility"
 authors = ["Spine-IQ"]
 edition = "2021"
