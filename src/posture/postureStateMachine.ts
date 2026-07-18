@@ -153,6 +153,17 @@ export class PostureStateMachine {
     return this.settle("good");
   }
 
+  /**
+   * The user says they fixed their posture: end the current episode now.
+   * Cooldown and the notified flag are preserved (no double notification);
+   * if they're actually still slouching, a fresh episode re-alerts after the
+   * normal persistence window.
+   */
+  acknowledge(): void {
+    this.resetTimers();
+    this.state = "good";
+  }
+
   private settle(state: PostureState, notify = false): PostureStep {
     this.state = state;
     return { state, notify };

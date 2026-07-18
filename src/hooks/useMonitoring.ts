@@ -112,6 +112,7 @@ export function useMonitoring(
   paused: boolean,
   baselines: MonitoringBaselines,
   manualMark: ManualMark | null,
+  slouchAck: number,
   history: HistoryStore,
   dispatch: Dispatch<AppAction>,
   options: MonitoringOptions = {},
@@ -589,6 +590,21 @@ export function useMonitoring(
     const video = videoRef.current;
     if (video) video.srcObject = null;
   }, [running, videoRef]);
+
+  // "I fixed my posture": end the slouch episode everywhere at once — state
+  // machine, sticky display, window pin, and the native alert flag.
+  const lastAckRef = useRef(slouchAck);
+  useEffect(() => {
+    if (slouchAck === lastAckRef.current) return;
+    lastAckRef.current = slouchAck;
+    controllerRef.current?.acknowledgeSlouch();
+    stickyStateRef.current.force("good");
+    if (alertActiveRef.current) {
+      alertActiveRef.current = false;
+      void setPostureAlert(false);
+    }
+    dbg("slouch acknowledged by user");
+  }, [slouchAck]);
 
   // Apply manual sitting/standing corrections immediately, and start learning
   // that position's signature so classification becomes automatic afterward.

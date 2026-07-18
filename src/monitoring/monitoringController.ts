@@ -298,6 +298,11 @@ export class MonitoringController {
     return this.machine.inCooldown(nowMs);
   }
 
+  /** User pressed "I fixed my posture": end the current slouch episode. */
+  acknowledgeSlouch(): void {
+    this.machine.acknowledge();
+  }
+
   reset(): void {
     this.machine.reset();
     this.presence.reset();

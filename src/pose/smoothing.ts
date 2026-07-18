@@ -168,6 +168,12 @@ export class StickyValue<T> {
     return this.displayed;
   }
 
+  /** Set the displayed value immediately, bypassing the hold. */
+  force(value: T): void {
+    this.displayed = value;
+    this.pending = null;
+  }
+
   reset(initial: T): void {
     this.displayed = initial;
     this.pending = null;

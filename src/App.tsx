@@ -114,9 +114,12 @@ function AppShell(): JSX.Element {
   useEffect(() => {
     if (!alerting) setAlertDismissed(false);
   }, [alerting]);
-  const dismissAlert = (): void => {
+  const fixedPosture = (): void => {
+    // Hide instantly; the acknowledge action also ends the episode in the
+    // monitor (state machine + sticky display + window pin), so nothing
+    // re-asserts the alert a tick later.
     setAlertDismissed(true);
-    // Drop always-on-top immediately; monitoring re-raises on the next episode.
+    dispatch({ type: "acknowledge_slouch" });
     void setPostureAlert(false);
   };
   const [voiceMuted, setVoiceMuted] = useState(
@@ -143,6 +146,7 @@ function AppShell(): JSX.Element {
       positionStanding: state.positionBaselineStanding,
     },
     state.manualMark,
+    state.slouchAck,
     history,
     dispatch,
     {
@@ -257,7 +261,7 @@ function AppShell(): JSX.Element {
             Sit back and reset your shoulders
           </span>
           <div className="slouch-overlay-actions">
-            <button onClick={dismissAlert}>Dismiss</button>
+            <button onClick={fixedPosture}>I fixed my posture</button>
             {!voiceMuted && <button onClick={muteVoice}>Mute voice</button>}
           </div>
         </div>

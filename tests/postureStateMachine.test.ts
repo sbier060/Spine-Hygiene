@@ -137,3 +137,38 @@ describe("PostureStateMachine", () => {
     expect(lastState).toBe("drifting");
   });
 });
+
+describe("acknowledge (I fixed my posture)", () => {
+  it("ends the episode immediately; a continued slouch must re-earn the alert", () => {
+    const m = new PostureStateMachine({
+      driftThreshold: 0.35,
+      enterPoor: 0.6,
+      exitPoor: 0.4,
+      driftSustainMs: 500,
+      poorPersistenceMs: 1000,
+      cooldownMs: 10_000,
+      resetSustainMs: 1000,
+      awayGraceMs: 2000,
+    });
+    let t = 0;
+    const step = (score: number) =>
+      m.update({
+        nowMs: (t += 200),
+        smoothedScore: score,
+        usable: true,
+        present: true,
+        paused: false,
+      });
+    for (let i = 0; i < 10; i++) step(0.9);
+    expect(["poor_confirmed", "cooldown"]).toContain(m.current);
+
+    m.acknowledge();
+    expect(m.current).toBe("good");
+
+    // Still slouching: back to candidate, confirmed only after persistence.
+    const s1 = step(0.9);
+    expect(s1.state).toBe("poor_candidate");
+    for (let i = 0; i < 6; i++) step(0.9);
+    expect(["poor_confirmed", "cooldown"]).toContain(m.current);
+  });
+});
