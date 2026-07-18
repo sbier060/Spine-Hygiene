@@ -37,7 +37,7 @@ export function PlaceSetupScreen(): JSX.Element {
         type: "set_places",
         places: history.placesCache.map((p) => ({ id: p.id, name: p.name })),
       });
-      void history.selectPlace(place.id, performance.now()).then(() => {
+      void history.selectPlace(place.id).then(() => {
         dispatch({
           type: "set_active_place",
           place: { id: place.id, name: place.name },

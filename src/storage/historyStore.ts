@@ -161,7 +161,6 @@ export class HistoryStore {
    */
   async selectPlace(
     id: number,
-    nowMs: number,
     opts: { updateDescriptor?: boolean } = {},
   ): Promise<void> {
     if (id === this.activePlace) return;
@@ -177,8 +176,8 @@ export class HistoryStore {
     }
     // Attribute time correctly: close the old place's session, open a new one.
     if (this.sessionId !== null) {
-      await this.flush(nowMs, true);
-      await this.startSession(nowMs);
+      await this.flush(true);
+      await this.startSession();
     }
   }
 
@@ -186,11 +185,17 @@ export class HistoryStore {
     return this.db !== null;
   }
 
-  async startSession(nowMs: number): Promise<void> {
+  /**
+   * NOTE on clocks: callers drive the aggregator with performance.now() (a
+   * monotonic clock, correct for durations), but anything PERSISTED must use
+   * wall-clock epoch ms or "today" queries can never match. The store owns
+   * that translation.
+   */
+  async startSession(): Promise<void> {
     this.aggregator.reset();
     this.localTimeline.length = 0;
     this.sessionId = this.sessions
-      ? await this.sessions.create(nowMs, this.activePlace)
+      ? await this.sessions.create(Date.now(), this.activePlace)
       : null;
   }
 
@@ -198,26 +203,30 @@ export class HistoryStore {
     this.aggregator.record(nowMs, sample);
   }
 
-  async flush(nowMs: number, end = false): Promise<void> {
+  async flush(end = false): Promise<void> {
     if (this.sessions && this.sessionId !== null) {
       await this.sessions.save(
         this.sessionId,
         this.aggregator.summary(),
-        end ? nowMs : null,
+        end ? Date.now() : null,
       );
     }
   }
 
   async addPositionEvent(event: PositionEvent): Promise<void> {
+    // event.atMs is on the monotonic clock; stamp storage with wall-clock.
+    const at = Date.now();
     this.localTimeline.push({
       id: this.localTimeline.length + 1,
       previous_position: event.previous,
       new_position: event.next,
       confidence: event.confidence,
       source: event.source,
-      created_at: event.atMs,
+      created_at: at,
     });
-    if (this.events) await this.events.insertPositionEvent(event);
+    if (this.events) {
+      await this.events.insertPositionEvent({ ...event, atMs: at });
+    }
   }
 
   /** Save a calibration for the ACTIVE place. */

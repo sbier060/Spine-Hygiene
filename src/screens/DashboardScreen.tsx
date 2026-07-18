@@ -67,9 +67,7 @@ export function DashboardScreen(): JSX.Element {
   const [newPlaceName, setNewPlaceName] = useState("");
 
   const switchPlace = (id: number): void => {
-    void applyPlaceSwitch(history, dispatch, id, performance.now(), {
-      updateDescriptor: true,
-    });
+    void applyPlaceSwitch(history, dispatch, id, { updateDescriptor: true });
   };
   const createPlace = (): void => {
     const name = newPlaceName.trim();
@@ -81,7 +79,7 @@ export function DashboardScreen(): JSX.Element {
       });
       setNewPlaceOpen(false);
       setNewPlaceName("");
-      void applyPlaceSwitch(history, dispatch, place.id, performance.now());
+      void applyPlaceSwitch(history, dispatch, place.id);
     });
   };
 

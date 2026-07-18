@@ -5,7 +5,7 @@ describe("HistoryStore (in-memory, no database)", () => {
   it("reports no database and accumulates a session for the dashboard", async () => {
     const store = new HistoryStore(null);
     expect(store.hasDatabase).toBe(false);
-    await store.startSession(0);
+    await store.startSession();
     store.record(0, {
       position: "sitting",
       postureState: "good",
@@ -27,7 +27,7 @@ describe("HistoryStore (in-memory, no database)", () => {
 
   it("records a position event into the timeline", async () => {
     const store = new HistoryStore(null);
-    await store.startSession(0);
+    await store.startSession();
     await store.addPositionEvent({
       previous: "sitting",
       next: "standing",
@@ -42,7 +42,7 @@ describe("HistoryStore (in-memory, no database)", () => {
 
   it("exports a JSON summary and clears on deleteHistory", async () => {
     const store = new HistoryStore(null);
-    await store.startSession(0);
+    await store.startSession();
     store.record(0, {
       position: "standing",
       postureState: "good",

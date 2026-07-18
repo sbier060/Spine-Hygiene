@@ -77,6 +77,10 @@ export const MIGRATION_STATEMENTS: readonly string[] = [
    WHERE NOT EXISTS (SELECT 1 FROM places)`,
   "UPDATE calibration_profiles SET place_id = 1 WHERE place_id IS NULL",
   "UPDATE work_sessions SET place_id = 1 WHERE place_id IS NULL",
+  // Purge rows written with the monotonic clock (pre-0.2.1 bug): their
+  // timestamps are ms-since-app-launch, so no date query can ever match them.
+  "DELETE FROM work_sessions WHERE started_at < 1000000000000",
+  "DELETE FROM position_events WHERE created_at < 1000000000000",
 ];
 
 /** Row shapes as returned by the DB (snake_case, matching the columns). */

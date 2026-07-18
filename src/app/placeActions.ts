@@ -26,10 +26,9 @@ export async function applyPlaceSwitch(
   history: HistoryStore,
   dispatch: Dispatch<AppAction>,
   placeId: number,
-  nowMs: number,
   opts: { updateDescriptor?: boolean } = {},
 ): Promise<void> {
-  await history.selectPlace(placeId, nowMs, opts);
+  await history.selectPlace(placeId, opts);
   const place = history.placesCache.find((p) => p.id === placeId);
   if (place) {
     dispatch({

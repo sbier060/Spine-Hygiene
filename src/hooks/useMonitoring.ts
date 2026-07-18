@@ -326,7 +326,7 @@ export function useMonitoring(
                       (p) => p.id === match,
                     )?.name;
                     dbg("scene matches place →", placeName, "— switching");
-                    void applyPlaceSwitch(historyRef.current, dispatch, match, now)
+                    void applyPlaceSwitch(historyRef.current, dispatch, match)
                       .finally(() => {
                         placeSwitchingRef.current = false;
                       });
@@ -447,7 +447,7 @@ export function useMonitoring(
       if (result.positionEvent) void store.addPositionEvent(result.positionEvent);
       if (now - lastFlushMs >= FLUSH_INTERVAL_MS) {
         lastFlushMs = now;
-        void store.flush(now);
+        void store.flush();
       }
 
       // Big red alert: pop the window to the front while slouching is confirmed,
@@ -562,7 +562,7 @@ export function useMonitoring(
         return;
       }
       if (cancelled) return;
-      await historyRef.current.startSession(performance.now());
+      await historyRef.current.startSession();
       if (!cancelled) void tick();
     }
 
@@ -572,7 +572,7 @@ export function useMonitoring(
       cancelled = true;
       if (timer) clearTimeout(timer);
       // Finalize the session summary on stop; drop any active alert.
-      void historyRef.current.flush(performance.now(), true);
+      void historyRef.current.flush(true);
       if (alertActiveRef.current) {
         alertActiveRef.current = false;
         void setPostureAlert(false);
