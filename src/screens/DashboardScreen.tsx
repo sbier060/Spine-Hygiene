@@ -5,9 +5,13 @@
  * (in-memory everywhere, SQLite in the native app). Behavioral summaries only —
  * never a medical score.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppContext } from "../app/AppProvider";
 import { useHistory } from "../app/HistoryProvider";
+import {
+  SettingsRepository,
+  type SettingsData,
+} from "../storage/settingsRepository";
 import { Logo } from "../components/Logo";
 import { PostureRing } from "../components/PostureRing";
 import { DailyBars } from "../components/DailyBars";
@@ -48,6 +52,15 @@ export function DashboardScreen(): JSX.Element {
   const [stats, setStats] = useState<DayStats | null>(null);
   const [daily, setDaily] = useState<DailyStat[]>([]);
   const [timeline, setTimeline] = useState<PositionEventRow[]>([]);
+  const settingsRepoRef = useRef<SettingsRepository | null>(null);
+  settingsRepoRef.current ??= new SettingsRepository();
+  const [settings, setSettings] = useState<SettingsData>(() =>
+    (settingsRepoRef.current as SettingsRepository).load(),
+  );
+  const [nameDraft, setNameDraft] = useState("");
+  const updateSettings = (patch: Partial<SettingsData>): void => {
+    setSettings((settingsRepoRef.current as SettingsRepository).update(patch));
+  };
 
   const reload = useCallback(() => {
     const now = Date.now();
@@ -119,6 +132,31 @@ export function DashboardScreen(): JSX.Element {
         </div>
       </div>
 
+      {!settings.userName && (
+        <div className="card name-card">
+          <span className="hero-headline">What should I call you?</span>
+          <div className="pause-controls">
+            <input
+              type="text"
+              value={nameDraft}
+              placeholder="Your first name"
+              autoComplete="given-name"
+              onChange={(e) => setNameDraft(e.target.value)}
+            />
+            <button
+              className="primary"
+              disabled={!nameDraft.trim()}
+              onClick={() => updateSettings({ userName: nameDraft.trim() })}
+            >
+              Save
+            </button>
+          </div>
+          <span className="hint">
+            Used by the voice: “{nameDraft.trim() || "Alek"}, you’re slouching.”
+          </span>
+        </div>
+      )}
+
       <h2 className="section-title">Last 14 days</h2>
       {hasTrend ? (
         <DailyBars data={daily} />
@@ -183,7 +221,25 @@ export function DashboardScreen(): JSX.Element {
       )}
 
       <details className="danger-zone">
-        <summary>Data &amp; privacy</summary>
+        <summary>Voice, data &amp; privacy</summary>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={settings.voiceEnabled}
+            onChange={(e) => updateSettings({ voiceEnabled: e.target.checked })}
+          />
+          Spoken slouch alerts
+        </label>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={settings.morningGreetingEnabled}
+            onChange={(e) =>
+              updateSettings({ morningGreetingEnabled: e.target.checked })
+            }
+          />
+          Daily greeting when the app opens
+        </label>
         <p className="hint">
           {history.hasDatabase
             ? "History is stored locally on this computer."

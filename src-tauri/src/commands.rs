@@ -22,6 +22,11 @@ pub fn set_posture_alert(app: tauri::AppHandle, active: bool) {
 }
 
 #[tauri::command]
+pub fn speak(text: String) {
+    app_lifecycle::speak_text(&text);
+}
+
+#[tauri::command]
 pub fn update_tray_status(
     app: tauri::AppHandle,
     posture: String,

@@ -38,7 +38,8 @@ pub fn run() {
             commands::get_app_version,
             commands::open_dashboard,
             commands::update_tray_status,
-            commands::set_posture_alert
+            commands::set_posture_alert,
+            commands::speak
         ])
         .setup(|app| {
             // Menu-bar (accessory) app on macOS: no dock icon, lives in the tray.

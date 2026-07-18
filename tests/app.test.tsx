@@ -18,8 +18,13 @@ describe("App onboarding wiring", () => {
     ).toBeInTheDocument();
   });
 
-  it("advances from privacy to the camera step on Continue", () => {
+  it("advances privacy → profile → camera", () => {
     render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+    // Profile step: name + focus chips; continuing without input is allowed.
+    expect(
+      screen.getByRole("heading", { name: /make it yours/i }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     expect(
       screen.getByRole("heading", { name: /enable your camera/i }),
@@ -28,6 +33,7 @@ describe("App onboarding wiring", () => {
 
   it("handles a missing camera API gracefully (no crash, shows retry)", async () => {
     render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /enable camera/i }));
     // jsdom has no navigator.mediaDevices → CameraManager returns a typed error

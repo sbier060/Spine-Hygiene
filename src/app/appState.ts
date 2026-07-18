@@ -18,6 +18,7 @@ import type { SpineIqError } from "../utils/errors";
 /** Onboarding → calibration → sandbox → monitoring flow. */
 export type AppPhase =
   | "privacy"
+  | "profile"
   | "camera"
   | "placement"
   | "calibrate"

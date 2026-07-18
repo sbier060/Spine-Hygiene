@@ -20,6 +20,7 @@ export function AppRouter({
   const { state } = useAppContext();
   switch (state.phase) {
     case "privacy":
+    case "profile":
     case "camera":
     case "placement":
       return <OnboardingScreen videoRef={videoRef} />;

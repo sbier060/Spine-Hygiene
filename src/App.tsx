@@ -13,6 +13,12 @@ import { listenTrayCommands } from "./tray/trayCommands";
 import { SettingsRepository } from "./storage/settingsRepository";
 import { machineConfigFromSettings } from "./monitoring/monitoringConfig";
 import { isTauriRuntime } from "./storage/database";
+import {
+  speak,
+  greetingLine,
+  shouldGreetToday,
+  markGreeted,
+} from "./audio/voice";
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useAppContext();
@@ -71,6 +77,20 @@ function AppShell(): JSX.Element {
       }
     })();
   }, []);
+
+  // Daily greeting: the first time the app is ready each day (it launches at
+  // login, so this is effectively "when the computer opens in the morning"),
+  // say hello once via the system voice.
+  useEffect(() => {
+    if (state.phase !== "dashboard" && state.phase !== "monitor") return;
+    if (!isTauriRuntime()) return;
+    const settings = settingsRef.current?.load();
+    if (!settings?.voiceEnabled || !settings.morningGreetingEnabled) return;
+    const now = Date.now();
+    if (!shouldGreetToday(localStorage, now)) return;
+    markGreeted(localStorage, now);
+    void speak(greetingLine(settings, new Date(now).getHours()));
+  }, [state.phase]);
 
   // Monitoring also runs while the user reads the dashboard — the dashboard is
   // the app's home surface, and stats/alerts must stay live there.

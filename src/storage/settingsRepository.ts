@@ -8,6 +8,16 @@
 export type SensitivityLevel = "low" | "balanced" | "high";
 
 export interface SettingsData {
+  /** What the voice calls the user (empty = speak without a name). */
+  readonly userName: string;
+  /** Personal "why" woven into a spoken nudge (empty = generic line). */
+  readonly motivation: string;
+  /** Behavioral focus areas chosen in onboarding (see profileOptions). */
+  readonly focusAreas: readonly string[];
+  /** Spoken slouch alerts via the system voice. */
+  readonly voiceEnabled: boolean;
+  /** One spoken greeting on the first open of each day. */
+  readonly morningGreetingEnabled: boolean;
   readonly sensitivity: SensitivityLevel;
   /** Per-user deviation saturation from two-point training (lower = more sensitive). */
   readonly deviationSaturation: number;
@@ -26,6 +36,12 @@ export interface SettingsData {
 
 /** Defaults from the spec's reminder-settings section. */
 export const DEFAULT_SETTINGS: SettingsData = {
+  userName: "",
+  // Default preserved from the original hand-tuned build; onboarding replaces it.
+  motivation: "You want to be able to pick up Jack when you're older.",
+  focusAreas: [],
+  voiceEnabled: true,
+  morningGreetingEnabled: true,
   sensitivity: "balanced",
   deviationSaturation: 4,
   // Sustained slouch before the red alert / notification fires. Kept short so
@@ -66,6 +82,13 @@ export function coerceSettings(parsed: unknown): SettingsData {
   const merged: Record<string, unknown> = { ...defaults };
   for (const key of Object.keys(defaults)) {
     const value = obj[key];
+    if (Array.isArray(defaults[key])) {
+      // Array fields (focusAreas): keep only string members.
+      if (Array.isArray(value)) {
+        merged[key] = value.filter((v): v is string => typeof v === "string");
+      }
+      continue;
+    }
     const expected = typeof defaults[key];
     if (typeof value === expected) merged[key] = value;
   }

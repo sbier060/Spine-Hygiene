@@ -32,6 +32,8 @@ import {
   formatDuration,
 } from "../tray/trayState";
 import { updateTrayStatus, setPostureAlert } from "../tray/trayCommands";
+import { speak, slouchLine } from "../audio/voice";
+import { SettingsRepository } from "../storage/settingsRepository";
 import { StickyValue } from "../pose/smoothing";
 import type { CalibrationBaseline, PostureState } from "../posture/postureTypes";
 import type { PositionBaseline } from "../position/positionCalibration";
@@ -103,6 +105,9 @@ export function useMonitoring(
     collector: PositionCalibrationCollector;
   } | null>(null);
   const alertActiveRef = useRef(false);
+  const voiceRotationRef = useRef(0);
+  const settingsRepoRef = useRef<SettingsRepository | null>(null);
+  settingsRepoRef.current ??= new SettingsRepository();
   const stickyStateRef = useRef(
     new StickyValue<PostureState>("good", STATUS_HOLD_MS, IMMEDIATE_STATES),
   );
@@ -329,6 +334,14 @@ export function useMonitoring(
       if (shouldAlert !== alertActiveRef.current) {
         alertActiveRef.current = shouldAlert;
         void setPostureAlert(shouldAlert);
+        // Speak once per slouch episode, personalized from the user's profile.
+        if (shouldAlert) {
+          const s = settingsRepoRef.current?.load();
+          if (s?.voiceEnabled) {
+            void speak(slouchLine(s, voiceRotationRef.current));
+            voiceRotationRef.current += 1;
+          }
+        }
       }
 
       void syncTray(displayState, result.position, now);

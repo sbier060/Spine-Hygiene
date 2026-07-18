@@ -1,12 +1,15 @@
 /**
- * Onboarding: privacy → camera permission → placement. Kept as one screen with
- * three steps driven by app phase. The user must acknowledge the privacy notice
- * before any camera access is requested.
+ * Onboarding: privacy → profile (name + focus) → camera permission → placement.
+ * Kept as one screen with steps driven by app phase. The user must acknowledge
+ * the privacy notice before any camera access is requested; the profile step
+ * personalizes the spoken coach ("Alek, you're slouching").
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAppContext } from "../app/AppProvider";
 import { CameraManager } from "../camera/cameraManager";
 import { CameraPreview } from "../components/CameraPreview";
+import { Logo } from "../components/Logo";
+import { SettingsRepository } from "../storage/settingsRepository";
 import {
   PlacementFeedback,
   evaluatePlacement,
@@ -15,6 +18,14 @@ import {
 const PRIVACY_COPY =
   "Spine-IQ analyzes posture directly on this computer. Camera images are not uploaded, recorded, or saved.";
 
+/** Behavioral focus options — wellness language only, never medical. */
+const FOCUS_OPTIONS: readonly { key: string; label: string }[] = [
+  { key: "slouching", label: "Slouching at my desk" },
+  { key: "screen-lean", label: "Drifting toward the screen" },
+  { key: "shoulders", label: "Rounded shoulders" },
+  { key: "long-sitting", label: "Sitting too long" },
+];
+
 export function OnboardingScreen({
   videoRef,
 }: {
@@ -22,17 +33,88 @@ export function OnboardingScreen({
 }): JSX.Element {
   const { state, dispatch } = useAppContext();
   const [requesting, setRequesting] = useState(false);
+  const settingsRef = useRef<SettingsRepository | null>(null);
+  settingsRef.current ??= new SettingsRepository();
+  const [name, setName] = useState("");
+  const [motivation, setMotivation] = useState("");
+  const [focus, setFocus] = useState<readonly string[]>([]);
 
   if (state.phase === "privacy") {
     return (
       <section className="screen onboarding">
-        <h1>Welcome to Spine-IQ</h1>
+        <Logo size={30} />
+        <h1>Your posture coach, in the menu bar</h1>
         <p className="privacy">{PRIVACY_COPY}</p>
         <button
           className="primary"
-          onClick={() => dispatch({ type: "set_phase", phase: "camera" })}
+          onClick={() => dispatch({ type: "set_phase", phase: "profile" })}
         >
           Continue
+        </button>
+      </section>
+    );
+  }
+
+  if (state.phase === "profile") {
+    const toggleFocus = (key: string): void => {
+      setFocus((f) => (f.includes(key) ? f.filter((k) => k !== key) : [...f, key]));
+    };
+    const saveProfile = (): void => {
+      settingsRef.current?.update({
+        userName: name.trim(),
+        motivation: motivation.trim(),
+        focusAreas: focus,
+      });
+      dispatch({ type: "set_phase", phase: "camera" });
+    };
+    return (
+      <section className="screen onboarding">
+        <h1>Make it yours</h1>
+        <p>
+          Spine-IQ speaks up when you slouch — telling it your name makes the
+          nudge personal.
+        </p>
+        <label className="field">
+          <span className="field-label">Your first name</span>
+          <input
+            type="text"
+            value={name}
+            placeholder="e.g. Alek"
+            autoComplete="given-name"
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
+        <div className="field">
+          <span className="field-label">What are you working on?</span>
+          <div className="chip-row">
+            {FOCUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                className={`chip-option${focus.includes(opt.key) ? " selected" : ""}`}
+                aria-pressed={focus.includes(opt.key)}
+                onClick={() => toggleFocus(opt.key)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="field">
+          <span className="field-label">Why does it matter to you? (optional)</span>
+          <input
+            type="text"
+            value={motivation}
+            placeholder="e.g. You want to be pain-free at your desk."
+            onChange={(e) => setMotivation(e.target.value)}
+          />
+          <span className="hint">
+            Spoken back to you when you slouch — write it as a reminder to
+            yourself.
+          </span>
+        </label>
+        <button className="primary" onClick={saveProfile}>
+          {name.trim() ? `Let's go, ${name.trim()}` : "Continue"}
         </button>
       </section>
     );
