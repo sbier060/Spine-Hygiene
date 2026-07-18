@@ -7,10 +7,11 @@ import { EventRepository } from "../src/storage/eventRepository";
 import { CalibrationRepository } from "../src/storage/calibrationRepository";
 
 describe("runMigrations", () => {
-  it("executes every schema statement", async () => {
+  it("executes every schema statement plus the tolerated migrations", async () => {
     const db = new FakeDatabase();
     await runMigrations(db);
-    expect(db.executed).toHaveLength(SCHEMA_STATEMENTS.length);
+    expect(db.executed.length).toBeGreaterThanOrEqual(SCHEMA_STATEMENTS.length);
+    expect(db.executed.some((e) => e.sql.includes("places"))).toBe(true);
   });
 });
 
@@ -76,6 +77,7 @@ describe("CalibrationRepository", () => {
     await repo.save(
       { positionType: "sitting", postureBaseline: null, positionBaseline },
       1234,
+      1,
     );
     // First a DELETE of the same type, then an INSERT.
     expect(db.executed[0]?.sql).toContain("DELETE FROM calibration_profiles");
@@ -96,7 +98,7 @@ describe("CalibrationRepository", () => {
         updated_at: 1234,
       },
     ];
-    const profile = await repo.getLatest("sitting");
+    const profile = await repo.getLatest("sitting", 1);
     expect(profile?.positionBaseline?.features.shoulderY).toBe(0.6);
     expect(profile?.postureBaseline).toBeNull();
   });

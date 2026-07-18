@@ -33,6 +33,12 @@ export interface ManualMark {
   readonly nonce: number;
 }
 
+/** A distinct spot the user works from (desk, comfy chair, couch). */
+export interface PlaceInfo {
+  readonly id: number;
+  readonly name: string;
+}
+
 /**
  * What the sandbox displays as the current status: a posture band, or
  * "low_confidence" when detection can't see enough of the user to judge
@@ -64,6 +70,8 @@ export interface AppState {
   readonly manualMark: ManualMark | null;
   /** Per-user posture sensitivity (deviation saturation) from two-point training. */
   readonly postureSaturation: number;
+  readonly places: readonly PlaceInfo[];
+  readonly activePlace: PlaceInfo | null;
   readonly error: SpineIqError | null;
 }
 
@@ -79,6 +87,8 @@ export const initialAppState: AppState = {
   monitor: null,
   manualMark: null,
   postureSaturation: 4,
+  places: [],
+  activePlace: null,
   error: null,
 };
 
@@ -94,6 +104,8 @@ export type AppAction =
   | { type: "resume_monitoring" }
   | { type: "mark_position"; position: PositionState }
   | { type: "set_saturation"; value: number }
+  | { type: "set_places"; places: readonly PlaceInfo[] }
+  | { type: "set_active_place"; place: PlaceInfo }
   | { type: "set_error"; error: SpineIqError | null }
   | { type: "toggle_dev" };
 
@@ -137,6 +149,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     case "set_saturation":
       return { ...state, postureSaturation: action.value };
+    case "set_places":
+      return { ...state, places: action.places };
+    case "set_active_place":
+      return { ...state, activePlace: action.place };
     case "set_error":
       return { ...state, error: action.error };
     case "toggle_dev":

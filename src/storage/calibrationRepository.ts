@@ -17,21 +17,26 @@ export interface CalibrationProfile {
 export class CalibrationRepository {
   constructor(private readonly db: SpineDatabase) {}
 
-  /** Insert (replacing any existing profile of the same type). */
-  async save(profile: CalibrationProfile, now: number): Promise<void> {
+  /** Insert (replacing any existing profile of the same type at this place). */
+  async save(
+    profile: CalibrationProfile,
+    now: number,
+    placeId: number,
+  ): Promise<void> {
     const posture = profile.postureBaseline;
     await this.db.execute(
-      "DELETE FROM calibration_profiles WHERE position_type = ?",
-      [profile.positionType],
+      "DELETE FROM calibration_profiles WHERE position_type = ? AND place_id = ?",
+      [profile.positionType, placeId],
     );
     await this.db.execute(
       `INSERT INTO calibration_profiles
-         (position_type, camera_device_id, baseline_features_json,
+         (position_type, place_id, camera_device_id, baseline_features_json,
           feature_variance_json, camera_width, camera_height, confidence,
           created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         profile.positionType,
+        placeId,
         posture?.cameraDeviceId ?? null,
         JSON.stringify(profile.postureBaseline),
         JSON.stringify(profile.positionBaseline),
@@ -46,11 +51,13 @@ export class CalibrationRepository {
 
   async getLatest(
     positionType: "sitting" | "standing",
+    placeId: number,
   ): Promise<CalibrationProfile | null> {
     const rows = await this.db.select<CalibrationProfileRow>(
       `SELECT * FROM calibration_profiles
-       WHERE position_type = ? ORDER BY updated_at DESC LIMIT 1`,
-      [positionType],
+       WHERE position_type = ? AND place_id = ?
+       ORDER BY updated_at DESC LIMIT 1`,
+      [positionType, placeId],
     );
     const row = rows[0];
     if (!row) return null;

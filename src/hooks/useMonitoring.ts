@@ -40,6 +40,11 @@ import {
 import { updateTrayStatus, setPostureAlert } from "../tray/trayCommands";
 import { speak, slouchLine } from "../audio/voice";
 import { systemIdleSeconds } from "../system/systemIdle";
+import {
+  computeSceneDescriptor,
+  classifyPlace,
+} from "../position/sceneSignature";
+import { applyPlaceSwitch } from "../app/placeActions";
 import { isTauriRuntime } from "../storage/database";
 import { SettingsRepository } from "../storage/settingsRepository";
 import { StickyValue } from "../pose/smoothing";
@@ -77,6 +82,9 @@ const STANDBY_POLL_MS = 3000;
 const STANDBY_WAKE_IDLE_S = 2.5;
 /** Polls between failsafe camera peeks (20 × 3s = 60s). */
 const STANDBY_FAILSAFE_POLLS = 20;
+
+/** A different place's scene must match this long before auto-switching. */
+const PLACE_SWITCH_SUSTAIN_MS = 15_000;
 
 /** Verbose monitoring diagnostics to the console (dev only). */
 const DEBUG_MONITOR = true;
@@ -137,6 +145,9 @@ export function useMonitoring(
   // Away-standby bookkeeping: when away began, and how many standby polls ran.
   const awaySinceRef = useRef<number | null>(null);
   const standbyPollsRef = useRef(0);
+  // Place auto-detection: a different place must match sustainedly to switch.
+  const placeCandidateRef = useRef<{ id: number; sinceMs: number } | null>(null);
+  const placeSwitchingRef = useRef(false);
   const stickyStateRef = useRef(
     new StickyValue<PostureState>("good", STATUS_HOLD_MS, IMMEDIATE_STATES),
   );
@@ -273,15 +284,43 @@ export function useMonitoring(
       if (video) {
         const gray = captureGrayFrame(video);
         if (gray) {
+          const exclusion = personExclusionFromLandmarks(landmarks);
           const prev = prevGrayRef.current;
           if (prev && prev.width === gray.width && prev.height === gray.height) {
-            backgroundMotion = computeBackgroundMotion(
-              prev,
-              gray,
-              personExclusionFromLandmarks(landmarks),
-            );
+            backgroundMotion = computeBackgroundMotion(prev, gray, exclusion);
           }
           prevGrayRef.current = gray;
+
+          // Place detection: fingerprint the scene and — when it sustainedly
+          // matches a DIFFERENT saved place — switch to it (swapping in that
+          // place's calibrations). Skips while the desk itself is moving.
+          const scene = computeSceneDescriptor(gray, exclusion);
+          if (scene) {
+            historyRef.current.setLatestScene(scene);
+            const stableScene = backgroundMotion?.backgroundStable ?? true;
+            if (stableScene && !placeSwitchingRef.current) {
+              const match = classifyPlace(scene, historyRef.current.placesCache);
+              if (match !== null && match !== historyRef.current.activePlaceId) {
+                const cand = placeCandidateRef.current;
+                if (cand?.id !== match) {
+                  placeCandidateRef.current = { id: match, sinceMs: now };
+                } else if (now - cand.sinceMs >= PLACE_SWITCH_SUSTAIN_MS) {
+                  placeCandidateRef.current = null;
+                  placeSwitchingRef.current = true;
+                  const placeName = historyRef.current.placesCache.find(
+                    (p) => p.id === match,
+                  )?.name;
+                  dbg("scene matches place →", placeName, "— switching");
+                  void applyPlaceSwitch(historyRef.current, dispatch, match, now)
+                    .finally(() => {
+                      placeSwitchingRef.current = false;
+                    });
+                }
+              } else {
+                placeCandidateRef.current = null;
+              }
+            }
+          }
         }
       }
 

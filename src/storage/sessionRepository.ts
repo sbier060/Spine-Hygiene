@@ -20,10 +20,10 @@ export interface SessionSummary {
 export class SessionRepository {
   constructor(private readonly db: SpineDatabase) {}
 
-  async create(startedAt: number): Promise<number> {
+  async create(startedAt: number, placeId: number | null = null): Promise<number> {
     const result = await this.db.execute(
-      "INSERT INTO work_sessions (started_at) VALUES (?)",
-      [startedAt],
+      "INSERT INTO work_sessions (started_at, place_id) VALUES (?, ?)",
+      [startedAt, placeId],
     );
     return result.lastInsertId ?? 0;
   }

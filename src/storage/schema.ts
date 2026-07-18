@@ -54,6 +54,29 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
      source TEXT NOT NULL,
      created_at INTEGER NOT NULL
    )`,
+  `CREATE TABLE IF NOT EXISTS places (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     descriptor_json TEXT,
+     camera_device_id TEXT,
+     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
+   )`,
+];
+
+/**
+ * Statements applied AFTER the base schema, each tolerated to fail (SQLite has
+ * no ALTER ... IF NOT EXISTS, so re-runs raise "duplicate column"). Order
+ * matters: columns first, then the default place, then backfill.
+ */
+export const MIGRATION_STATEMENTS: readonly string[] = [
+  "ALTER TABLE calibration_profiles ADD COLUMN place_id INTEGER",
+  "ALTER TABLE work_sessions ADD COLUMN place_id INTEGER",
+  `INSERT INTO places (id, name, descriptor_json, camera_device_id, created_at, updated_at)
+   SELECT 1, 'My desk', NULL, NULL, 0, 0
+   WHERE NOT EXISTS (SELECT 1 FROM places)`,
+  "UPDATE calibration_profiles SET place_id = 1 WHERE place_id IS NULL",
+  "UPDATE work_sessions SET place_id = 1 WHERE place_id IS NULL",
 ];
 
 /** Row shapes as returned by the DB (snake_case, matching the columns). */
@@ -78,6 +101,15 @@ export interface PositionEventRow {
   confidence: number;
   source: string;
   created_at: number;
+}
+
+export interface PlaceRow {
+  id: number;
+  name: string;
+  descriptor_json: string | null;
+  camera_device_id: string | null;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface CalibrationProfileRow {

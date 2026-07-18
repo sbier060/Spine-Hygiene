@@ -4,7 +4,7 @@
  * fake. The real implementation is backed by the Tauri SQL plugin and only runs
  * in the native app.
  */
-import { SCHEMA_STATEMENTS } from "./schema";
+import { SCHEMA_STATEMENTS, MIGRATION_STATEMENTS } from "./schema";
 
 export interface ExecuteResult {
   readonly rowsAffected: number;
@@ -46,9 +46,16 @@ export async function createTauriDatabase(
   return wrapper;
 }
 
-/** Run the idempotent schema DDL. */
+/** Run the idempotent schema DDL, then the tolerated migration statements. */
 export async function runMigrations(db: SpineDatabase): Promise<void> {
   for (const statement of SCHEMA_STATEMENTS) {
     await db.execute(statement);
+  }
+  for (const statement of MIGRATION_STATEMENTS) {
+    try {
+      await db.execute(statement);
+    } catch {
+      // Expected on re-runs (e.g. "duplicate column name" from ALTER TABLE).
+    }
   }
 }

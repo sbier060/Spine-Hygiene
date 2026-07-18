@@ -13,6 +13,7 @@ import {
   type SettingsData,
 } from "../storage/settingsRepository";
 import { speak, slouchLine, VOICE_OPTIONS } from "../audio/voice";
+import { applyPlaceSwitch } from "../app/placeActions";
 import { Logo } from "../components/Logo";
 import { PostureRing } from "../components/PostureRing";
 import { DailyBars } from "../components/DailyBars";
@@ -61,6 +62,27 @@ export function DashboardScreen(): JSX.Element {
   const [nameDraft, setNameDraft] = useState("");
   const updateSettings = (patch: Partial<SettingsData>): void => {
     setSettings((settingsRepoRef.current as SettingsRepository).update(patch));
+  };
+  const [newPlaceOpen, setNewPlaceOpen] = useState(false);
+  const [newPlaceName, setNewPlaceName] = useState("");
+
+  const switchPlace = (id: number): void => {
+    void applyPlaceSwitch(history, dispatch, id, performance.now(), {
+      updateDescriptor: true,
+    });
+  };
+  const createPlace = (): void => {
+    const name = newPlaceName.trim();
+    if (!name) return;
+    void history.createPlace(name, Date.now()).then((place) => {
+      dispatch({
+        type: "set_places",
+        places: history.placesCache.map((p) => ({ id: p.id, name: p.name })),
+      });
+      setNewPlaceOpen(false);
+      setNewPlaceName("");
+      void applyPlaceSwitch(history, dispatch, place.id, performance.now());
+    });
   };
 
   const reload = useCallback(() => {
@@ -132,6 +154,53 @@ export function DashboardScreen(): JSX.Element {
           )}
         </div>
       </div>
+
+      {state.places.length > 0 && (
+        <>
+          <h2 className="section-title">Place</h2>
+          <div className="pause-controls">
+            <select
+              value={state.activePlace?.id ?? state.places[0]?.id}
+              onChange={(e) => switchPlace(Number(e.target.value))}
+            >
+              {state.places.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {newPlaceOpen ? (
+              <>
+                <input
+                  type="text"
+                  value={newPlaceName}
+                  placeholder="e.g. Couch"
+                  onChange={(e) => setNewPlaceName(e.target.value)}
+                />
+                <button
+                  className="primary"
+                  disabled={!newPlaceName.trim()}
+                  onClick={createPlace}
+                >
+                  Save place
+                </button>
+              </>
+            ) : (
+              <button className="ghost" onClick={() => setNewPlaceOpen(true)}>
+                New place
+              </button>
+            )}
+          </div>
+          {newPlaceOpen && (
+            <p className="hint">
+              Be at that spot with monitoring on when you save — the current
+              view becomes the place’s fingerprint. Then recapture “good
+              posture” there so it’s judged by the right baseline. Spine-IQ
+              switches places automatically when it recognizes the scene.
+            </p>
+          )}
+        </>
+      )}
 
       {!settings.userName && (
         <div className="card name-card">

@@ -30,6 +30,17 @@ export function HistoryProvider({ children }: { children: ReactNode }): JSX.Elem
       .then(async (db) => {
         if (cancelled || !store) return;
         store.attachDatabase(db);
+        // Places first: the active place decides WHICH calibration to restore.
+        const { places, active } = await store.initPlaces();
+        if (cancelled) return;
+        dispatch({
+          type: "set_places",
+          places: places.map((p) => ({ id: p.id, name: p.name })),
+        });
+        dispatch({
+          type: "set_active_place",
+          place: { id: active.id, name: active.name },
+        });
         // Restore saved calibration so the user doesn't recalibrate every launch.
         const { sitting, standing } = await store.loadCalibrations();
         if (cancelled) return;
