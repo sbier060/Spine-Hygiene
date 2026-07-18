@@ -22,7 +22,7 @@ import type { Landmark } from "../pose/landmarkTypes";
 import { extractPositionFeatures } from "../position/positionFeatures";
 import { PositionCalibrationCollector } from "../position/positionCalibration";
 import { MonitoringController } from "../monitoring/monitoringController";
-import { extractFeatures } from "../pose/featureExtractor";
+import { extractFeatures, type PostureFeatures } from "../pose/featureExtractor";
 import { computeDeviationSaturation } from "../posture/postureScorer";
 import { absorbGoodSample } from "../posture/calibrationService";
 import type { PostureMachineConfig } from "../posture/postureStateMachine";
@@ -167,6 +167,11 @@ export function useMonitoring(
   // Latest landmarks/result, for detection-feedback learning.
   const lastLandmarksRef = useRef<readonly Landmark[]>([]);
   const lastResultRef = useRef<{ state: string; score: number } | null>(null);
+  // The WORST pose of the current alert episode — this, not the pose at the
+  // moment the user reacts (by which point they've usually sat back up), is
+  // what "I'm not slouching" must learn from.
+  const alertPoseRef = useRef<PostureFeatures | null>(null);
+  const alertPoseScoreRef = useRef(0);
   const stickyStateRef = useRef(
     new StickyValue<PostureState>("good", STATUS_HOLD_MS, IMMEDIATE_STATES),
   );
@@ -474,6 +479,17 @@ export function useMonitoring(
       // the popup up for the hold so it never flashes away on one good frame.
       const shouldAlert =
         displayState === "poor_confirmed" || displayState === "cooldown";
+      // Keep the highest-scoring (most-slouched) pose of this episode so
+      // "I'm not slouching" learns the actual trigger, not a later frame.
+      if (shouldAlert && landmarks.length > 0) {
+        if (result.smoothedScore >= alertPoseScoreRef.current) {
+          alertPoseScoreRef.current = result.smoothedScore;
+          alertPoseRef.current = extractFeatures(landmarks);
+        }
+      } else if (!shouldAlert) {
+        alertPoseRef.current = null;
+        alertPoseScoreRef.current = 0;
+      }
       if (shouldAlert !== alertActiveRef.current) {
         alertActiveRef.current = shouldAlert;
         void setPostureAlert(shouldAlert);
@@ -646,8 +662,15 @@ export function useMonitoring(
       return;
     }
     lastFeedbackNonceRef.current = postureFeedback.nonce;
+    // For "not slouching", learn from the pose that TRIGGERED the alert; for
+    // "actually slouching", learn from what the camera sees right now.
     const landmarks = lastLandmarksRef.current;
-    const features = landmarks.length > 0 ? extractFeatures(landmarks) : null;
+    const liveFeatures =
+      landmarks.length > 0 ? extractFeatures(landmarks) : null;
+    const features =
+      postureFeedback.kind === "not_slouching"
+        ? (alertPoseRef.current ?? liveFeatures)
+        : liveFeatures;
     const last = lastResultRef.current;
     void historyRef.current.recordPostureFeedback({
       verdict:

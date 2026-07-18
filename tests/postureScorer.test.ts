@@ -183,12 +183,14 @@ describe("absorbGoodSample (I'm-not-slouching feedback)", () => {
     );
     const pose = extractFeatures(hunchedPose());
     const before = scorePosture(pose, baseline).score;
-    let widened = baseline;
-    // Two corrections, as a user would give when repeatedly flagged wrongly.
-    widened = absorbGoodSample(widened, pose);
-    widened = absorbGoodSample(widened, pose);
-    const after = scorePosture(pose, widened).score;
-    expect(after).toBeLessThan(before);
-    expect(after).toBeLessThan(0.6); // no longer enters the poor band
+    // A single correction should already pull the exact flagged pose out of
+    // the poor band — repeated false alarms must stop fast.
+    const once = absorbGoodSample(baseline, pose);
+    const afterOne = scorePosture(pose, once).score;
+    expect(afterOne).toBeLessThan(before);
+    expect(afterOne).toBeLessThan(0.6);
+    // A second correction pushes it further toward good.
+    const afterTwo = scorePosture(pose, absorbGoodSample(once, pose)).score;
+    expect(afterTwo).toBeLessThan(afterOne);
   });
 });

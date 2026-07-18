@@ -91,8 +91,13 @@ export function absorbGoodSample(
     const value = sample[key];
     const fb = baseline.features[key];
     if (value === null || !fb) continue;
-    const median = fb.median + 0.25 * (value - fb.median);
-    const deviation = Math.max(fb.deviation, Math.abs(value - median) * 0.8);
+    // Move the target a solid step toward the corrected pose, and widen the
+    // tolerated spread so THIS pose lands comfortably inside the good band
+    // (normalized deviation ≈ 0.7). Decisive enough that one or two "I'm not
+    // slouching" corrections stop the same motion from re-triggering.
+    const median = fb.median + 0.4 * (value - fb.median);
+    const gap = Math.abs(value - median);
+    const deviation = Math.max(fb.deviation, gap / 0.7);
     features[key] = { median, deviation };
   }
   return { ...baseline, features };
