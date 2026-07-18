@@ -76,10 +76,15 @@ const IMMEDIATE_STATES: readonly PostureState[] = [
  * entirely (green light OFF). Input activity wakes it instantly; a failsafe
  * camera peek runs once a minute in case they return without touching anything.
  */
-const STANDBY_AFTER_AWAY_MS = 10_000;
+const STANDBY_AFTER_AWAY_MS = 4_000;
 const STANDBY_POLL_MS = 3000;
 /** Input within this window counts as "the user is back". */
 const STANDBY_WAKE_IDLE_S = 2.5;
+/**
+ * Never release the camera while the keyboard/mouse is active: an undetected
+ * but typing user is a lighting problem, not an absence.
+ */
+const STANDBY_MIN_INPUT_IDLE_S = 15;
 /** Polls between failsafe camera peeks (20 × 3s = 60s). */
 const STANDBY_FAILSAFE_POLLS = 20;
 
@@ -477,14 +482,20 @@ export function useMonitoring(
       if (result.state === "away" && isTauriRuntime()) {
         awaySinceRef.current ??= now;
         if (now - awaySinceRef.current >= STANDBY_AFTER_AWAY_MS) {
-          dbg("away sustained → releasing camera (standby)");
-          camera.stop();
-          const v = videoRef.current;
-          if (v) v.srcObject = null;
-          prevGrayRef.current = null;
-          standbyPollsRef.current = 0;
-          timer = setTimeout(() => void standbyTick(), STANDBY_POLL_MS);
-          return;
+          // Guard: recent keyboard/mouse input means they're at the desk even
+          // if the camera can't see them — keep watching instead of sleeping.
+          const idle = await systemIdleSeconds();
+          if (idle === null || idle >= STANDBY_MIN_INPUT_IDLE_S) {
+            dbg("away sustained + input idle → releasing camera (standby)");
+            camera.stop();
+            const v = videoRef.current;
+            if (v) v.srcObject = null;
+            prevGrayRef.current = null;
+            standbyPollsRef.current = 0;
+            timer = setTimeout(() => void standbyTick(), STANDBY_POLL_MS);
+            return;
+          }
+          dbg("away but input active — keeping camera on");
         }
       } else {
         awaySinceRef.current = null;

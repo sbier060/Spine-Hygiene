@@ -29,7 +29,7 @@ export interface PositionMachineConfig {
 export const DEFAULT_POSITION_MACHINE_CONFIG: PositionMachineConfig = {
   switchSustainMs: 4000,
   minConfidence: 0.5,
-  awayGraceMs: 20_000,
+  awayGraceMs: 6_000,
   transitionHoldMs: 30_000,
 };
 

@@ -37,7 +37,9 @@ export const DEFAULT_POSTURE_MACHINE_CONFIG: PostureMachineConfig = {
   poorPersistenceMs: 60_000,
   cooldownMs: 15 * 60_000,
   resetSustainMs: 18_000,
-  awayGraceMs: 20_000,
+  // An empty frame is checked every ~500ms, so 6s ≈ a dozen consecutive
+  // no-person detections — decisive without flapping on brief lean-outs.
+  awayGraceMs: 6_000,
 };
 
 export interface PostureInput {
