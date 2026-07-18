@@ -25,7 +25,8 @@ export type AppPhase =
   | "calibrate_standing"
   | "sandbox"
   | "monitor"
-  | "dashboard";
+  | "dashboard"
+  | "place_setup";
 
 /** A pending manual position correction (consumed by the monitoring hook). */
 export interface ManualMark {
@@ -72,6 +73,10 @@ export interface AppState {
   readonly postureSaturation: number;
   readonly places: readonly PlaceInfo[];
   readonly activePlace: PlaceInfo | null;
+  /** The scene doesn't match any saved place — offer the new-spot flow. */
+  readonly newPlaceHint: boolean;
+  /** Inside the guided new-place setup (name → calibrate → back to dashboard). */
+  readonly placeSetup: boolean;
   readonly error: SpineIqError | null;
 }
 
@@ -89,6 +94,8 @@ export const initialAppState: AppState = {
   postureSaturation: 4,
   places: [],
   activePlace: null,
+  newPlaceHint: false,
+  placeSetup: false,
   error: null,
 };
 
@@ -106,6 +113,9 @@ export type AppAction =
   | { type: "set_saturation"; value: number }
   | { type: "set_places"; places: readonly PlaceInfo[] }
   | { type: "set_active_place"; place: PlaceInfo }
+  | { type: "set_new_place_hint"; value: boolean }
+  | { type: "begin_place_setup" }
+  | { type: "exit_place_setup" }
   | { type: "set_error"; error: SpineIqError | null }
   | { type: "toggle_dev" };
 
@@ -152,7 +162,21 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case "set_places":
       return { ...state, places: action.places };
     case "set_active_place":
-      return { ...state, activePlace: action.place };
+      return { ...state, activePlace: action.place, newPlaceHint: false };
+    case "set_new_place_hint":
+      return { ...state, newPlaceHint: action.value };
+    case "begin_place_setup":
+      return {
+        ...state,
+        placeSetup: true,
+        newPlaceHint: false,
+        phase: "place_setup",
+        error: null,
+      };
+    case "exit_place_setup":
+      // Monitoring status is untouched: it was running before the setup began
+      // and resumes automatically back on the dashboard.
+      return { ...state, placeSetup: false, phase: "dashboard" };
     case "set_error":
       return { ...state, error: action.error };
     case "toggle_dev":

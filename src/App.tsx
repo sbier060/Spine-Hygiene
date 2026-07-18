@@ -19,6 +19,7 @@ import {
   shouldGreetToday,
   markGreeted,
 } from "./audio/voice";
+import { snoozeNewPlace } from "./app/placeActions";
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useAppContext();
@@ -202,6 +203,38 @@ function AppShell(): JSX.Element {
       )}
 
       <AppRouter videoRef={videoRef} cameraInfoRef={cameraInfoRef} />
+
+      {/* New-spot suggestion: the scene doesn't match any saved place. */}
+      {state.newPlaceHint &&
+        (state.phase === "dashboard" || state.phase === "monitor") && (
+          <div className="new-place-banner" role="status">
+            <div className="new-place-copy">
+              <span className="new-place-title">Looks like a new spot</span>
+              <span className="hint">
+                This view doesn’t match{" "}
+                {state.activePlace ? `“${state.activePlace.name}”` : "any saved place"}.
+                Set it up so posture is judged by the right baseline here.
+              </span>
+            </div>
+            <div className="pause-controls">
+              <button
+                className="primary"
+                onClick={() => dispatch({ type: "begin_place_setup" })}
+              >
+                Set up this spot
+              </button>
+              <button
+                className="ghost"
+                onClick={() => {
+                  snoozeNewPlace(Date.now());
+                  dispatch({ type: "set_new_place_hint", value: false });
+                }}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        )}
 
       {/* App-level slouch alert: covers whichever screen is open when the
           window pops to the front (dashboard, monitor, anywhere). */}

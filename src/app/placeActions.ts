@@ -8,6 +8,20 @@ import type { Dispatch } from "react";
 import type { HistoryStore } from "../storage/historyStore";
 import type { AppAction } from "./appState";
 
+const NEW_PLACE_SNOOZE_KEY = "spine-iq.newplace.snooze";
+
+/** True while the user has dismissed the new-spot prompt (30 min). */
+export function isNewPlaceSnoozed(nowMs: number): boolean {
+  if (typeof localStorage === "undefined") return false;
+  const until = Number(localStorage.getItem(NEW_PLACE_SNOOZE_KEY) ?? 0);
+  return nowMs < until;
+}
+
+export function snoozeNewPlace(nowMs: number, minutes = 30): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(NEW_PLACE_SNOOZE_KEY, String(nowMs + minutes * 60_000));
+}
+
 export async function applyPlaceSwitch(
   history: HistoryStore,
   dispatch: Dispatch<AppAction>,

@@ -8,6 +8,7 @@ import { CalibrationScreen } from "../screens/CalibrationScreen";
 import { DevSandboxScreen } from "../screens/DevSandboxScreen";
 import { MonitorScreen } from "../screens/MonitorScreen";
 import { DashboardScreen } from "../screens/DashboardScreen";
+import { PlaceSetupScreen } from "../screens/PlaceSetupScreen";
 import type { CameraInfo } from "../hooks/usePoseLoop";
 
 export function AppRouter({
@@ -46,6 +47,8 @@ export function AppRouter({
       return <MonitorScreen />;
     case "dashboard":
       return <DashboardScreen />;
+    case "place_setup":
+      return <PlaceSetupScreen />;
     default:
       return <OnboardingScreen videoRef={videoRef} />;
   }

@@ -96,10 +96,14 @@ export function CalibrationScreen({
         { positionType, postureBaseline, positionBaseline },
         now,
       );
-      dispatch({
-        type: "set_phase",
-        phase: isStanding ? "sandbox" : "calibrate_standing",
-      });
+      if (isStanding) {
+        // In the new-place flow, finishing calibration returns to the
+        // dashboard and monitoring resumes; normally, back to the sandbox.
+        if (state.placeSetup) dispatch({ type: "exit_place_setup" });
+        else dispatch({ type: "set_phase", phase: "sandbox" });
+      } else {
+        dispatch({ type: "set_phase", phase: "calibrate_standing" });
+      }
     }
   }, [
     collecting,
@@ -110,6 +114,7 @@ export function CalibrationScreen({
     isStanding,
     positionType,
     targetSamples,
+    state.placeSetup,
   ]);
 
   const start = (): void => {
@@ -126,7 +131,11 @@ export function CalibrationScreen({
   return (
     <section className="screen calibration">
       <h1>
-        {isStanding ? "Calibrate standing (optional)" : "Calibrate your sitting posture"}
+        {isStanding
+          ? "Calibrate standing (optional)"
+          : state.placeSetup && state.activePlace
+            ? `Calibrate your posture at “${state.activePlace.name}”`
+            : "Calibrate your sitting posture"}
       </h1>
       <p>
         {isStanding
@@ -156,7 +165,11 @@ export function CalibrationScreen({
           {isStanding && (
             <button
               className="ghost"
-              onClick={() => dispatch({ type: "set_phase", phase: "sandbox" })}
+              onClick={() =>
+                state.placeSetup
+                  ? dispatch({ type: "exit_place_setup" })
+                  : dispatch({ type: "set_phase", phase: "sandbox" })
+              }
             >
               Skip
             </button>

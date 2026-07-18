@@ -95,6 +95,32 @@ export class HistoryStore {
     this.latestScene = descriptor;
   }
 
+  /** Whether the active place has been scene-fingerprinted yet. */
+  get activePlaceHasDescriptor(): boolean {
+    return (
+      this.placeList.find((p) => p.id === this.activePlace)?.descriptor != null
+    );
+  }
+
+  /**
+   * Fingerprint the active place with the current scene (used to silently
+   * adopt the first stable scene for a place created before fingerprinting
+   * existed, e.g. the migrated default desk).
+   */
+  async adoptSceneForActivePlace(): Promise<void> {
+    if (!this.latestScene || this.activePlaceHasDescriptor) return;
+    if (this.places) {
+      await this.places.updateDescriptor(
+        this.activePlace,
+        this.latestScene,
+        Date.now(),
+      );
+    }
+    this.placeList = this.placeList.map((p) =>
+      p.id === this.activePlace ? { ...p, descriptor: this.latestScene } : p,
+    );
+  }
+
   /** Load places and restore the last active one. Call after attachDatabase. */
   async initPlaces(): Promise<{ places: readonly Place[]; active: Place }> {
     if (this.places) {

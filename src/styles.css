@@ -773,8 +773,50 @@ select:focus-visible {
   gap: 10px;
 }
 
+/* ---- New-spot banner --------------------------------------------------------- */
+.new-place-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 500;
+  width: min(560px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface-2);
+  border: 1px solid rgba(62, 207, 142, 0.35);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-pop);
+  animation: banner-in 260ms var(--ease-out);
+}
+
+.new-place-title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.new-place-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 /* ---- Motion accessibility ---------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
+  .new-place-banner,
   .slouch-alert,
   .slouch-overlay,
   .chip-dot,

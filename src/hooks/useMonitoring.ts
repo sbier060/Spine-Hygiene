@@ -44,7 +44,7 @@ import {
   computeSceneDescriptor,
   classifyPlace,
 } from "../position/sceneSignature";
-import { applyPlaceSwitch } from "../app/placeActions";
+import { applyPlaceSwitch, isNewPlaceSnoozed } from "../app/placeActions";
 import { isTauriRuntime } from "../storage/database";
 import { SettingsRepository } from "../storage/settingsRepository";
 import { StickyValue } from "../pose/smoothing";
@@ -85,6 +85,9 @@ const STANDBY_FAILSAFE_POLLS = 20;
 
 /** A different place's scene must match this long before auto-switching. */
 const PLACE_SWITCH_SUSTAIN_MS = 15_000;
+
+/** An unrecognized scene must persist this long before offering "new spot". */
+const NEW_PLACE_SUSTAIN_MS = 30_000;
 
 /** Verbose monitoring diagnostics to the console (dev only). */
 const DEBUG_MONITOR = true;
@@ -148,6 +151,9 @@ export function useMonitoring(
   // Place auto-detection: a different place must match sustainedly to switch.
   const placeCandidateRef = useRef<{ id: number; sinceMs: number } | null>(null);
   const placeSwitchingRef = useRef(false);
+  // Unknown-scene detection → "looks like a new spot" flow.
+  const unknownSceneSinceRef = useRef<number | null>(null);
+  const newPlaceHintedRef = useRef(false);
   const stickyStateRef = useRef(
     new StickyValue<PostureState>("good", STATUS_HOLD_MS, IMMEDIATE_STATES),
   );
@@ -299,25 +305,51 @@ export function useMonitoring(
             historyRef.current.setLatestScene(scene);
             const stableScene = backgroundMotion?.backgroundStable ?? true;
             if (stableScene && !placeSwitchingRef.current) {
-              const match = classifyPlace(scene, historyRef.current.placesCache);
-              if (match !== null && match !== historyRef.current.activePlaceId) {
-                const cand = placeCandidateRef.current;
-                if (cand?.id !== match) {
-                  placeCandidateRef.current = { id: match, sinceMs: now };
-                } else if (now - cand.sinceMs >= PLACE_SWITCH_SUSTAIN_MS) {
-                  placeCandidateRef.current = null;
-                  placeSwitchingRef.current = true;
-                  const placeName = historyRef.current.placesCache.find(
-                    (p) => p.id === match,
-                  )?.name;
-                  dbg("scene matches place →", placeName, "— switching");
-                  void applyPlaceSwitch(historyRef.current, dispatch, match, now)
-                    .finally(() => {
-                      placeSwitchingRef.current = false;
-                    });
+              // A place created before fingerprinting existed (the migrated
+              // default desk) silently adopts the first stable scene.
+              if (!historyRef.current.activePlaceHasDescriptor) {
+                if (landmarks.length > 0) {
+                  dbg("adopting current scene for the active place");
+                  void historyRef.current.adoptSceneForActivePlace();
                 }
               } else {
-                placeCandidateRef.current = null;
+                const match = classifyPlace(scene, historyRef.current.placesCache);
+                if (match !== null && match !== historyRef.current.activePlaceId) {
+                  unknownSceneSinceRef.current = null;
+                  const cand = placeCandidateRef.current;
+                  if (cand?.id !== match) {
+                    placeCandidateRef.current = { id: match, sinceMs: now };
+                  } else if (now - cand.sinceMs >= PLACE_SWITCH_SUSTAIN_MS) {
+                    placeCandidateRef.current = null;
+                    placeSwitchingRef.current = true;
+                    const placeName = historyRef.current.placesCache.find(
+                      (p) => p.id === match,
+                    )?.name;
+                    dbg("scene matches place →", placeName, "— switching");
+                    void applyPlaceSwitch(historyRef.current, dispatch, match, now)
+                      .finally(() => {
+                        placeSwitchingRef.current = false;
+                      });
+                  }
+                } else if (match === null && landmarks.length > 0) {
+                  // Scene matches NO saved place: after sustained evidence,
+                  // offer the "new spot" setup flow (snoozable).
+                  placeCandidateRef.current = null;
+                  unknownSceneSinceRef.current ??= now;
+                  if (
+                    !newPlaceHintedRef.current &&
+                    now - unknownSceneSinceRef.current >= NEW_PLACE_SUSTAIN_MS &&
+                    !isNewPlaceSnoozed(Date.now())
+                  ) {
+                    newPlaceHintedRef.current = true;
+                    dbg("unknown scene sustained → suggesting new place");
+                    dispatch({ type: "set_new_place_hint", value: true });
+                  }
+                } else {
+                  placeCandidateRef.current = null;
+                  unknownSceneSinceRef.current = null;
+                  newPlaceHintedRef.current = false;
+                }
               }
             }
           }
