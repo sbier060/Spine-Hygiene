@@ -34,19 +34,18 @@ export async function speak(text: string, voice = ""): Promise<void> {
 }
 
 /**
- * Voices offered in the picker. All are built into macOS or free downloads;
- * a voice that isn't downloaded simply won't speak until it's installed.
+ * Voices ACTUALLY installed on this Mac (via `say -v ?`), so every picker
+ * option is guaranteed to speak. Returns [] outside the native app.
  */
-export const VOICE_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: "", label: "System default" },
-  { value: "Samantha", label: "Samantha (US)" },
-  { value: "Ava (Premium)", label: "Ava — Premium (US)" },
-  { value: "Zoe (Premium)", label: "Zoe — Premium (US)" },
-  { value: "Evan (Enhanced)", label: "Evan — Enhanced (US)" },
-  { value: "Nathan (Enhanced)", label: "Nathan — Enhanced (US)" },
-  { value: "Karen (Enhanced)", label: "Karen — Enhanced (AU)" },
-  { value: "Daniel (Enhanced)", label: "Daniel — Enhanced (UK)" },
-];
+export async function listSystemVoices(): Promise<string[]> {
+  if (!isTauri()) return [];
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return await invoke<string[]>("list_voices");
+  } catch {
+    return [];
+  }
+}
 
 /** "Alek, you're slouching." — prefix a name naturally when we have one. */
 function withName(name: string, sentence: string): string {

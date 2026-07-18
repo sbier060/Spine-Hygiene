@@ -12,7 +12,7 @@ import {
   SettingsRepository,
   type SettingsData,
 } from "../storage/settingsRepository";
-import { speak, slouchLine, VOICE_OPTIONS } from "../audio/voice";
+import { speak, slouchLine, listSystemVoices } from "../audio/voice";
 import { applyPlaceSwitch } from "../app/placeActions";
 import { Logo } from "../components/Logo";
 import { PostureRing } from "../components/PostureRing";
@@ -65,6 +65,11 @@ export function DashboardScreen(): JSX.Element {
   };
   const [newPlaceOpen, setNewPlaceOpen] = useState(false);
   const [newPlaceName, setNewPlaceName] = useState("");
+  // Voices installed on this Mac — the picker only offers ones that work.
+  const [systemVoices, setSystemVoices] = useState<string[]>([]);
+  useEffect(() => {
+    void listSystemVoices().then(setSystemVoices);
+  }, []);
 
   const switchPlace = (id: number): void => {
     void applyPlaceSwitch(history, dispatch, id, { updateDescriptor: true });
@@ -332,9 +337,16 @@ export function DashboardScreen(): JSX.Element {
               value={settings.voiceName}
               onChange={(e) => updateSettings({ voiceName: e.target.value })}
             >
-              {VOICE_OPTIONS.map((v) => (
-                <option key={v.value} value={v.value}>
-                  {v.label}
+              <option value="">System default</option>
+              {settings.voiceName &&
+                !systemVoices.includes(settings.voiceName) && (
+                  <option value={settings.voiceName}>
+                    {settings.voiceName} (not installed)
+                  </option>
+                )}
+              {systemVoices.map((v) => (
+                <option key={v} value={v}>
+                  {v}
                 </option>
               ))}
             </select>
@@ -345,10 +357,10 @@ export function DashboardScreen(): JSX.Element {
             </button>
           </div>
           <span className="hint">
-            Premium and Enhanced voices sound far better and are free: System
-            Settings → Accessibility → Spoken Content → System Voice → Manage
-            Voices, download one, then pick it here. If a voice stays silent,
-            it isn’t downloaded yet.
+            This list shows only voices installed on this Mac. For much better
+            ones (free): System Settings → Accessibility → Spoken Content →
+            System Voice → Manage Voices — download a Premium or Enhanced
+            voice (e.g. Ava, Zoe, Evan), then reopen this screen and pick it.
           </span>
         </div>
         <p className="hint">

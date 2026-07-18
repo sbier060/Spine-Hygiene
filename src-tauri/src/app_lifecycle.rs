@@ -41,6 +41,40 @@ pub fn configure(app: &mut App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Names of the voices actually installed on this Mac (`say -v ?`). The
+/// picker is built from this list so every option is guaranteed to speak.
+pub fn list_voices() -> Vec<String> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(out) = std::process::Command::new("say").args(["-v", "?"]).output() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let mut voices: Vec<String> = text
+                .lines()
+                .filter_map(|line| {
+                    // Format: "Evan (Enhanced)     en_US    # blurb" — the name
+                    // ends at the first run of 2+ spaces (names may contain
+                    // single spaces and parentheses).
+                    let idx = line.find("  ")?;
+                    let name = line[..idx].trim();
+                    if name.is_empty() {
+                        None
+                    } else {
+                        Some(name.to_string())
+                    }
+                })
+                .collect();
+            voices.sort();
+            voices.dedup();
+            return voices;
+        }
+        Vec::new()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Vec::new()
+    }
+}
+
 /// Seconds since the last keyboard/mouse input, read from IOKit's HIDIdleTime
 /// (no special permissions required). Used to wake the camera from away-standby
 /// the moment the user touches anything. Returns a negative value when the

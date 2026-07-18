@@ -33,6 +33,11 @@ pub async fn system_idle_seconds() -> f64 {
 }
 
 #[tauri::command]
+pub async fn list_voices() -> Vec<String> {
+    app_lifecycle::list_voices()
+}
+
+#[tauri::command]
 pub fn update_tray_status(
     app: tauri::AppHandle,
     posture: String,
