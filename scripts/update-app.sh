@@ -16,6 +16,9 @@ git pull
 # build can poison the new one with permission errors.
 rm -rf src-tauri/target
 
+# Regenerate the .icns/.ico set from the branded app icon.
+npm run tauri icon ./app-icon.png
+
 npm run tauri build -- --bundles app
 
 # Replace the installed app (quit it first so the copy isn't busy).

@@ -72,7 +72,11 @@ function AppShell(): JSX.Element {
     })();
   }, []);
 
-  const monitoring = state.phase === "monitor";
+  // Monitoring also runs while the user reads the dashboard — the dashboard is
+  // the app's home surface, and stats/alerts must stay live there.
+  const monitoring =
+    state.phase === "monitor" ||
+    (state.phase === "dashboard" && state.monitoringStatus.kind !== "stopped");
   const paused = state.monitoringStatus.kind === "paused";
   useMonitoring(
     videoRef,
@@ -156,6 +160,19 @@ function AppShell(): JSX.Element {
       )}
 
       <AppRouter videoRef={videoRef} cameraInfoRef={cameraInfoRef} />
+
+      {/* App-level slouch alert: covers whichever screen is open when the
+          window pops to the front (dashboard, monitor, anywhere). */}
+      {monitoring &&
+        (state.monitor?.state === "poor_confirmed" ||
+          state.monitor?.state === "cooldown") && (
+          <div className="slouch-overlay" role="alert">
+            <span className="slouch-overlay-title">You’re slouching</span>
+            <span className="slouch-overlay-sub">
+              Sit back and reset your shoulders
+            </span>
+          </div>
+        )}
     </main>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "react";
 import { HistoryStore } from "../storage/historyStore";
 import { createTauriDatabase, isTauriRuntime } from "../storage/database";
+import { SettingsRepository } from "../storage/settingsRepository";
 import { useAppContext } from "./AppProvider";
 
 const HistoryContext = createContext<HistoryStore | null>(null);
@@ -41,9 +42,16 @@ export function HistoryProvider({ children }: { children: ReactNode }): JSX.Elem
         if (standing?.positionBaseline) {
           dispatch({ type: "set_position_baseline", baseline: standing.positionBaseline });
         }
-        // With a saved posture baseline we can skip straight to the sandbox.
+        // With a saved posture baseline the app is ready to work: start
+        // monitoring right away (unless disabled) and land on the dashboard,
+        // so opening Spine-IQ in the morning needs zero clicks.
         if (sitting?.postureBaseline) {
-          dispatch({ type: "set_phase", phase: "sandbox" });
+          if (new SettingsRepository().load().startMonitoringAutomatically) {
+            dispatch({ type: "start_monitoring" });
+            dispatch({ type: "set_phase", phase: "dashboard" });
+          } else {
+            dispatch({ type: "set_phase", phase: "sandbox" });
+          }
         }
       })
       .catch((err: unknown) => {

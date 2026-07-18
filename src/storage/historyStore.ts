@@ -16,7 +16,13 @@ import {
   type CalibrationProfile,
 } from "./calibrationRepository";
 import { SessionAggregator, type AggregatorSample } from "./sessionAggregator";
-import { aggregateDay, startOfDay, type DayStats } from "./dashboardMetrics";
+import {
+  aggregateDay,
+  aggregateDaily,
+  startOfDay,
+  type DayStats,
+  type DailyStat,
+} from "./dashboardMetrics";
 import type { PositionEvent } from "../position/positionTypes";
 
 function summaryToRow(s: SessionSummary): WorkSessionRow {
@@ -119,6 +125,18 @@ export class HistoryStore {
       return aggregateDay(rows);
     }
     return aggregateDay([summaryToRow(this.aggregator.summary())]);
+  }
+
+  /** Per-day posture stats for the trailing `days` days (today last). */
+  async loadDailyStats(nowMs: number, days = 14): Promise<DailyStat[]> {
+    if (this.sessions) {
+      const firstDay = startOfDay(nowMs) - (days - 1) * 86_400_000;
+      const rows = await this.sessions.listSince(firstDay);
+      return aggregateDaily(rows, nowMs, days);
+    }
+    // In-memory fallback: the current session counts as today.
+    const row = { ...summaryToRow(this.aggregator.summary()), started_at: nowMs };
+    return aggregateDaily([row], nowMs, days);
   }
 
   async loadTimeline(nowMs: number): Promise<PositionEventRow[]> {
