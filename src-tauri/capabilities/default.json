@@ -12,6 +12,8 @@
     "core:app:allow-version",
     "core:event:default",
     "opener:default",
+    "updater:default",
+    "process:default",
     "notification:default",
     "autostart:allow-enable",
     "autostart:allow-disable",

@@ -20,6 +20,7 @@ import {
   markGreeted,
 } from "./audio/voice";
 import { snoozeNewPlace } from "./app/placeActions";
+import { checkForUpdates } from "./system/updater";
 
 function AppShell(): JSX.Element {
   const { state, dispatch } = useAppContext();
@@ -77,6 +78,17 @@ function AppShell(): JSX.Element {
         console.error("Spine-IQ: could not enable launch-at-login", err);
       }
     })();
+  }, []);
+
+  // Self-update: check shortly after launch (before the user is mid-flow) and
+  // then every 6 hours, since the app runs indefinitely from the menu bar.
+  useEffect(() => {
+    const initial = setTimeout(() => void checkForUpdates(), 15_000);
+    const recurring = setInterval(() => void checkForUpdates(), 6 * 3_600_000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(recurring);
+    };
   }, []);
 
   // Daily greeting: the first time the app is ready each day (it launches at

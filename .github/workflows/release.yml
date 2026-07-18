@@ -1,0 +1,51 @@
+name: Release
+
+# Push a version tag (v0.2.0) to build, sign (updater key), and publish a
+# GitHub Release with the DMG + updater manifest. Installed apps self-update
+# from the release feed within ~6 hours.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies (also fetches the pose model)
+        run: npm ci
+
+      - name: Generate .icns from the branded icon
+        run: npm run tauri icon ./app-icon.png
+
+      - name: Build, bundle, and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Spine-IQ ${{ github.ref_name }}"
+          releaseBody: "Install once with the one-line installer in the README; existing installs update themselves automatically."
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin

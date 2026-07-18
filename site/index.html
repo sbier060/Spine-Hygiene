@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spine-IQ — your posture coach, in the menu bar</title>
+  <meta name="description" content="A private, local posture coach for your Mac. It watches how you sit, speaks up when you slouch, and never sends a single frame anywhere." />
+  <style>
+    :root {
+      --bg: #0b0f14; --surface: #131a22; --border: #243040;
+      --text: #eaf1f7; --muted: #8c9aab;
+      --good: #3ecf8e; --good-deep: #1f9d5f; --good-bright: #54e6c0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; color: var(--text);
+      background: radial-gradient(900px 600px at 70% -10%, rgba(31,157,95,0.12), transparent 60%), var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+    main { max-width: 640px; margin: 0 auto; padding: 64px 24px 80px; display: flex; flex-direction: column; gap: 28px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 700; }
+    .iq { background: linear-gradient(180deg, var(--good-bright), var(--good-deep)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    h1 { font-size: 36px; line-height: 1.15; letter-spacing: -0.02em; margin: 0; }
+    p { margin: 0; color: var(--muted); line-height: 1.6; font-size: 16px; }
+    .install {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .install-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    code {
+      display: block; background: #0a0e13; border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px; font-size: 13px; overflow-x: auto; white-space: nowrap; color: var(--good);
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    }
+    .hint { font-size: 13px; }
+    ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+    li { display: flex; gap: 10px; color: var(--text); font-size: 15px; line-height: 1.5; }
+    li::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 7px;
+      background: linear-gradient(180deg, var(--good-bright), var(--good-deep)); }
+    li span { color: var(--muted); }
+    a { color: var(--good); }
+    footer { font-size: 13px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="logo">
+      <svg width="30" height="30" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <defs><linearGradient id="v" x1="32" y1="4" x2="32" y2="60" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#54E6C0"/><stop offset="0.55" stop-color="#3ECF8E"/><stop offset="1" stop-color="#1F9D5F"/>
+        </linearGradient></defs>
+        <circle cx="27" cy="10" r="7" fill="url(#v)"/><circle cx="34" cy="23.5" r="5" fill="url(#v)" opacity="0.95"/>
+        <circle cx="37" cy="35.5" r="5.5" fill="url(#v)" opacity="0.9"/><circle cx="33" cy="46.5" r="6" fill="url(#v)" opacity="0.85"/>
+        <circle cx="26" cy="56" r="6.5" fill="url(#v)" opacity="0.8"/>
+      </svg>
+      <span>Spine<span class="iq">IQ</span></span>
+    </div>
+
+    <h1>A posture coach that lives in your menu bar — and never phones home.</h1>
+    <p>
+      Spine-IQ watches how you sit through your Mac's camera, entirely on your Mac.
+      When you slouch, it tells you — out loud, by name. Everything else it just
+      quietly tracks: sitting vs. standing, desk transitions, percent good posture
+      per day, per spot in your home.
+    </p>
+
+    <div class="install">
+      <span class="install-label">Install (macOS)</span>
+      <code>curl -fsSL https://raw.githubusercontent.com/sbier060/Spine-Hygiene/main/scripts/install.sh | sh</code>
+      <p class="hint">One command, no account, no App Store. The app keeps itself up to date automatically.</p>
+    </div>
+
+    <ul>
+      <li>Speaks up when you slouch — <span>"Alek, sit up. You want to be able to pick up Jack when you're older."</span></li>
+      <li>Knows sitting from standing — <span>it detects your adjustable desk physically moving.</span></li>
+      <li>Learns your spots — <span>desk, comfy chair, couch — each judged by its own baseline.</span></li>
+      <li>Camera off when you're away — <span>the green light honestly tracks you being at the desk.</span></li>
+      <li>Radically private — <span>no cloud, no account, no frame ever stored or uploaded. <a href="https://github.com/sbier060/Spine-Hygiene/blob/main/docs/PRIVACY.md">Read the privacy doc</a>.</span></li>
+    </ul>
+
+    <footer>
+      Open source on <a href="https://github.com/sbier060/Spine-Hygiene">GitHub</a>.
+      Spine-IQ is a wellness utility, not a medical device.
+    </footer>
+  </main>
+</body>
+</html>
