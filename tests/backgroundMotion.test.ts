@@ -83,3 +83,42 @@ describe("computeBackgroundMotion", () => {
     expect(m.likelyCameraMotion).toBe(false);
   });
 });
+
+describe("real camera geometry (160×90 with a centered person)", () => {
+  const RW = 160;
+  const RH = 90;
+  function texturedSmall(seed = 3): { data: Uint8ClampedArray; width: number; height: number } {
+    const data = new Uint8ClampedArray(RW * RH);
+    let s = seed;
+    for (let i = 0; i < data.length; i++) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      data[i] = Math.floor((s / 0xffffffff) * 256);
+    }
+    return { data, width: RW, height: RH };
+  }
+  function shiftedSmall(src: Uint8ClampedArray, dy: number): { data: Uint8ClampedArray; width: number; height: number } {
+    const out = new Uint8ClampedArray(RW * RH);
+    for (let y = 0; y < RH; y++) {
+      for (let x = 0; x < RW; x++) {
+        const sy = Math.min(RH - 1, Math.max(0, y - dy));
+        out[y * RW + x] = src[sy * RW + x] as number;
+      }
+    }
+    return { data: out, width: RW, height: RH };
+  }
+
+  it("keeps enough tracked points to detect motion around a person", () => {
+    const prev = texturedSmall();
+    const cur = shiftedSmall(prev.data, 5);
+    // Person occupies the central 40% of the frame down to the bottom.
+    const m = computeBackgroundMotion(prev, cur, {
+      x: 0.3,
+      y: 0.1,
+      width: 0.4,
+      height: 0.9,
+    });
+    expect(m.validPointCount).toBeGreaterThanOrEqual(12);
+    expect(m.medianDeltaY).toBeCloseTo(5, 0);
+    expect(m.likelyCameraMotion).toBe(true);
+  });
+});

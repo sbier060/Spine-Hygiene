@@ -52,9 +52,13 @@ export interface MotionOptions {
 }
 
 export const DEFAULT_MOTION_OPTIONS: MotionOptions = {
-  gridStep: 16,
+  // 12px grid: a 160×90 tracking frame yields ~50 candidates, so enough
+  // survive person-exclusion + texture filtering to clear minPoints.
+  gridStep: 12,
   patchRadius: 4,
-  searchRadius: 12,
+  // Desk motion at ~1s processing cadence can shift the background >12px at
+  // tracking scale; 14 keeps fast desks inside the search window.
+  searchRadius: 14,
   minTextureVariance: 60,
   minPoints: 12,
   minVerticalMotion: 1.5,
