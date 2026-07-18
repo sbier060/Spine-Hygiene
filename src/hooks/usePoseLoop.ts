@@ -137,9 +137,12 @@ export function usePoseLoop(
       const result = await camera.start();
       if (cancelled) return;
       if (!result.ok) {
+        // Surface the denial so onboarding can show the retry path.
+        dispatch({ type: "set_permission", permission: "denied" });
         dispatch({ type: "set_error", error: result.error });
         return;
       }
+      dispatch({ type: "set_permission", permission: "granted" });
       const video = videoRef.current;
       if (video) {
         video.srcObject = result.value.stream;

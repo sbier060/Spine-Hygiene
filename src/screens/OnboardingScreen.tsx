@@ -6,7 +6,6 @@
  */
 import { useRef, useState } from "react";
 import { useAppContext } from "../app/AppProvider";
-import { CameraManager } from "../camera/cameraManager";
 import { CameraPreview } from "../components/CameraPreview";
 import { Logo } from "../components/Logo";
 import { SettingsRepository } from "../storage/settingsRepository";
@@ -32,7 +31,6 @@ export function OnboardingScreen({
   videoRef: React.RefObject<HTMLVideoElement>;
 }): JSX.Element {
   const { state, dispatch } = useAppContext();
-  const [requesting, setRequesting] = useState(false);
   const settingsRef = useRef<SettingsRepository | null>(null);
   settingsRef.current ??= new SettingsRepository();
   const [name, setName] = useState("");
@@ -122,21 +120,13 @@ export function OnboardingScreen({
 
   if (state.phase === "camera") {
     const denied = state.cameraPermission === "denied";
-    const requestCamera = async (): Promise<void> => {
-      setRequesting(true);
-      // Prompt for permission with a throwaway manager, then hand the camera to
-      // the pose loop by advancing to placement.
-      const probe = new CameraManager();
-      const result = await probe.start();
-      setRequesting(false);
-      if (result.ok) {
-        probe.stop();
-        dispatch({ type: "set_permission", permission: "granted" });
-        dispatch({ type: "set_phase", phase: "placement" });
-      } else {
-        dispatch({ type: "set_permission", permission: "denied" });
-        dispatch({ type: "set_error", error: result.error });
-      }
+    // Advance to placement and let the pose loop make the SINGLE camera
+    // request (macOS shows the permission prompt there). A throwaway probe
+    // here used to acquire the camera a second time — that was the double
+    // permission prompt.
+    const requestCamera = (): void => {
+      dispatch({ type: "set_error", error: null });
+      dispatch({ type: "set_phase", phase: "placement" });
     };
 
     return (
@@ -155,12 +145,8 @@ export function OnboardingScreen({
             </p>
           </div>
         )}
-        <button
-          className="primary"
-          disabled={requesting}
-          onClick={() => void requestCamera()}
-        >
-          {requesting ? "Requesting…" : denied ? "Try again" : "Enable camera"}
+        <button className="primary" onClick={requestCamera}>
+          {denied ? "Try again" : "Enable camera"}
         </button>
       </section>
     );
@@ -172,6 +158,26 @@ export function OnboardingScreen({
     ? evaluatePlacement(reading.landmarks, reading.quality)
     : [];
   const allGood = checks.length > 0 && checks.every((c) => c.ok);
+
+  // Camera denied while trying to place: route back to the explainer + retry.
+  if (state.cameraPermission === "denied") {
+    return (
+      <section className="screen onboarding">
+        <h1>Camera access needed</h1>
+        {state.error && <p className="error-box">{state.error.message}</p>}
+        <p className="hint">
+          Grant access in System Settings › Privacy &amp; Security › Camera,
+          then try again.
+        </p>
+        <button
+          className="primary"
+          onClick={() => dispatch({ type: "set_phase", phase: "camera" })}
+        >
+          Try again
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="screen onboarding placement">
