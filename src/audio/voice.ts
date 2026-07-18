@@ -11,12 +11,17 @@ function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-/** Speak a line out loud. Fire-and-forget; failures are silent by design. */
-export async function speak(text: string): Promise<void> {
+/**
+ * Speak a line out loud. Fire-and-forget; failures are silent by design.
+ * `voice` is a macOS voice name (e.g. "Ava (Premium)"); empty uses the system
+ * default. Premium/Enhanced voices are free downloads in System Settings →
+ * Accessibility → Spoken Content → System Voice → Manage Voices.
+ */
+export async function speak(text: string, voice = ""): Promise<void> {
   if (isTauri()) {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("speak", { text });
+      await invoke("speak", { text, voice: voice || null });
       return;
     } catch (err) {
       console.error("Spine-IQ: speak failed", err);
@@ -27,6 +32,21 @@ export async function speak(text: string): Promise<void> {
     window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
   }
 }
+
+/**
+ * Voices offered in the picker. All are built into macOS or free downloads;
+ * a voice that isn't downloaded simply won't speak until it's installed.
+ */
+export const VOICE_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: "", label: "System default" },
+  { value: "Samantha", label: "Samantha (US)" },
+  { value: "Ava (Premium)", label: "Ava — Premium (US)" },
+  { value: "Zoe (Premium)", label: "Zoe — Premium (US)" },
+  { value: "Evan (Enhanced)", label: "Evan — Enhanced (US)" },
+  { value: "Nathan (Enhanced)", label: "Nathan — Enhanced (US)" },
+  { value: "Karen (Enhanced)", label: "Karen — Enhanced (AU)" },
+  { value: "Daniel (Enhanced)", label: "Daniel — Enhanced (UK)" },
+];
 
 /** "Alek, you're slouching." — prefix a name naturally when we have one. */
 function withName(name: string, sentence: string): string {

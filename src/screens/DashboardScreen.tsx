@@ -12,6 +12,7 @@ import {
   SettingsRepository,
   type SettingsData,
 } from "../storage/settingsRepository";
+import { speak, slouchLine, VOICE_OPTIONS } from "../audio/voice";
 import { Logo } from "../components/Logo";
 import { PostureRing } from "../components/PostureRing";
 import { DailyBars } from "../components/DailyBars";
@@ -240,6 +241,32 @@ export function DashboardScreen(): JSX.Element {
           />
           Daily greeting when the app opens
         </label>
+        <div className="field">
+          <span className="field-label">Voice</span>
+          <div className="pause-controls">
+            <select
+              value={settings.voiceName}
+              onChange={(e) => updateSettings({ voiceName: e.target.value })}
+            >
+              {VOICE_OPTIONS.map((v) => (
+                <option key={v.value} value={v.value}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => void speak(slouchLine(settings, 0), settings.voiceName)}
+            >
+              Test
+            </button>
+          </div>
+          <span className="hint">
+            Premium and Enhanced voices sound far better and are free: System
+            Settings → Accessibility → Spoken Content → System Voice → Manage
+            Voices, download one, then pick it here. If a voice stays silent,
+            it isn’t downloaded yet.
+          </span>
+        </div>
         <p className="hint">
           {history.hasDatabase
             ? "History is stored locally on this computer."

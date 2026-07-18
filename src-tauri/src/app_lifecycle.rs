@@ -9,14 +9,22 @@ use tauri::{App, Manager, Runtime, WebviewWindow};
 /// Speak text via the free macOS system voice (`say`). Fire-and-forget: spawn
 /// so the UI thread never waits on speech. The front end builds the lines
 /// (personalized from the user's profile) and calls the `speak` command.
-pub fn speak_text(text: &str) {
+/// `voice` selects a macOS voice by name (e.g. "Ava (Premium)"); empty/None
+/// uses the system default.
+pub fn speak_text(text: &str, voice: Option<&str>) {
     #[cfg(target_os = "macos")]
     {
-        let _ = std::process::Command::new("say").arg(text).spawn();
+        let mut cmd = std::process::Command::new("say");
+        if let Some(v) = voice {
+            if !v.is_empty() {
+                cmd.arg("-v").arg(v);
+            }
+        }
+        let _ = cmd.arg(text).spawn();
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = text;
+        let _ = (text, voice);
     }
 }
 

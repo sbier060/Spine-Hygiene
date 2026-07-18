@@ -375,7 +375,7 @@ export function useMonitoring(
         if (shouldAlert) {
           const s = settingsRepoRef.current?.load();
           if (s?.voiceEnabled) {
-            void speak(slouchLine(s, voiceRotationRef.current));
+            void speak(slouchLine(s, voiceRotationRef.current), s.voiceName);
             voiceRotationRef.current += 1;
           }
         }

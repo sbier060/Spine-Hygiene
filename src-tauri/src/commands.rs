@@ -22,8 +22,8 @@ pub fn set_posture_alert(app: tauri::AppHandle, active: bool) {
 }
 
 #[tauri::command]
-pub fn speak(text: String) {
-    app_lifecycle::speak_text(&text);
+pub fn speak(text: String, voice: Option<String>) {
+    app_lifecycle::speak_text(&text, voice.as_deref());
 }
 
 #[tauri::command]

@@ -21,6 +21,8 @@ export interface SettingsData {
   readonly backgroundDownMeansStanding: boolean;
   /** Spoken slouch alerts via the system voice. */
   readonly voiceEnabled: boolean;
+  /** macOS voice name for `say` (empty = system default voice). */
+  readonly voiceName: string;
   /** One spoken greeting on the first open of each day. */
   readonly morningGreetingEnabled: boolean;
   readonly sensitivity: SensitivityLevel;
@@ -47,6 +49,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
   focusAreas: [],
   backgroundDownMeansStanding: true,
   voiceEnabled: true,
+  voiceName: "",
   morningGreetingEnabled: true,
   sensitivity: "balanced",
   deviationSaturation: 4,

@@ -3,13 +3,13 @@
  * renders the phase router. The loop runs once the user reaches placement and
  * keeps the camera + model alive across the remaining onboarding steps.
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppProvider, useAppContext } from "./app/AppProvider";
 import { HistoryProvider, useHistory } from "./app/HistoryProvider";
 import { AppRouter } from "./app/router";
 import { usePoseLoop } from "./hooks/usePoseLoop";
 import { useMonitoring } from "./hooks/useMonitoring";
-import { listenTrayCommands } from "./tray/trayCommands";
+import { listenTrayCommands, setPostureAlert } from "./tray/trayCommands";
 import { SettingsRepository } from "./storage/settingsRepository";
 import { machineConfigFromSettings } from "./monitoring/monitoringConfig";
 import { isTauriRuntime } from "./storage/database";
@@ -89,8 +89,30 @@ function AppShell(): JSX.Element {
     const now = Date.now();
     if (!shouldGreetToday(localStorage, now)) return;
     markGreeted(localStorage, now);
-    void speak(greetingLine(settings, new Date(now).getHours()));
+    void speak(greetingLine(settings, new Date(now).getHours()), settings.voiceName);
   }, [state.phase]);
+
+  // The red overlay can be dismissed for the current slouch episode (useful
+  // while training/testing); it re-arms once posture leaves the alert states.
+  const [alertDismissed, setAlertDismissed] = useState(false);
+  const alerting =
+    state.monitor?.state === "poor_confirmed" ||
+    state.monitor?.state === "cooldown";
+  useEffect(() => {
+    if (!alerting) setAlertDismissed(false);
+  }, [alerting]);
+  const dismissAlert = (): void => {
+    setAlertDismissed(true);
+    // Drop always-on-top immediately; monitoring re-raises on the next episode.
+    void setPostureAlert(false);
+  };
+  const [voiceMuted, setVoiceMuted] = useState(
+    () => !(settingsRef.current?.load().voiceEnabled ?? true),
+  );
+  const muteVoice = (): void => {
+    settingsRef.current?.update({ voiceEnabled: false });
+    setVoiceMuted(true);
+  };
 
   // Monitoring also runs while the user reads the dashboard — the dashboard is
   // the app's home surface, and stats/alerts must stay live there.
@@ -183,16 +205,18 @@ function AppShell(): JSX.Element {
 
       {/* App-level slouch alert: covers whichever screen is open when the
           window pops to the front (dashboard, monitor, anywhere). */}
-      {monitoring &&
-        (state.monitor?.state === "poor_confirmed" ||
-          state.monitor?.state === "cooldown") && (
-          <div className="slouch-overlay" role="alert">
-            <span className="slouch-overlay-title">You’re slouching</span>
-            <span className="slouch-overlay-sub">
-              Sit back and reset your shoulders
-            </span>
+      {monitoring && alerting && !alertDismissed && (
+        <div className="slouch-overlay" role="alert">
+          <span className="slouch-overlay-title">You’re slouching</span>
+          <span className="slouch-overlay-sub">
+            Sit back and reset your shoulders
+          </span>
+          <div className="slouch-overlay-actions">
+            <button onClick={dismissAlert}>Dismiss</button>
+            {!voiceMuted && <button onClick={muteVoice}>Mute voice</button>}
           </div>
-        )}
+        </div>
+      )}
     </main>
   );
 }
