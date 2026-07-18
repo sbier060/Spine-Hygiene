@@ -15,6 +15,7 @@ import {
 import {
   type PostureFeatures,
   availableScoredFeatureCount,
+  implausibleFeature,
   SCORED_FEATURE_KEYS,
 } from "./featureExtractor";
 
@@ -111,6 +112,13 @@ export function assessDetectionQuality(
       usable: false,
       reason: "missing_shoulder",
     };
+  }
+
+  // Physiologically impossible feature values mean an object is blocking the
+  // view (phone in front of the face, etc.) — MediaPipe hallucinates occluded
+  // landmarks with optimistic visibility, so this must be caught geometrically.
+  if (implausibleFeature(features) !== null) {
+    return { score: 0.3, usable: false, reason: "face_blocked" };
   }
 
   const featureRatio =

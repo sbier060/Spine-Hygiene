@@ -180,3 +180,32 @@ export function availableScoredFeatureCount(features: PostureFeatures): number {
     0,
   );
 }
+
+/**
+ * Generous physiological bounds per feature. Values outside these are not a
+ * posture — they're an artifact, typically an object (phone, mug) held in
+ * front of the face dragging MediaPipe's hallucinated face landmarks around.
+ * Occlusion must read as "can't see you", never as slouching.
+ */
+const PLAUSIBLE_RANGES: Partial<
+  Record<ScoredFeatureKey, readonly [number, number]>
+> = {
+  headForward: [-0.5, 2.5],
+  screenLean: [-2.5, 2.5],
+  // shoulderWidth / headSize: humans sit around 1.9–2.5; a blocked face
+  // shrinks or explodes the apparent head size far outside this.
+  shoulderCollapse: [1.0, 4.5],
+};
+
+/** The first feature whose value is physiologically implausible, or null. */
+export function implausibleFeature(
+  features: PostureFeatures,
+): ScoredFeatureKey | null {
+  for (const key of SCORED_FEATURE_KEYS) {
+    const range = PLAUSIBLE_RANGES[key];
+    const value = features[key];
+    if (!range || value === null) continue;
+    if (value < range[0] || value > range[1]) return key;
+  }
+  return null;
+}

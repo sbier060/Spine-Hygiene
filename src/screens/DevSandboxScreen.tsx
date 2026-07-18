@@ -86,6 +86,8 @@ function reasonText(reason: string | null): string {
       return "shoulders not visible";
     case "face_turned":
       return "face turned away";
+    case "face_blocked":
+      return "something's blocking the view";
     case "too_few_features":
       return "not enough of you visible";
     case "too_much_movement":

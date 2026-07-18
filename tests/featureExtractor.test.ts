@@ -62,3 +62,32 @@ describe("extractFeatures", () => {
     expect(availableScoredFeatureCount(f)).toBe(0);
   });
 });
+
+describe("occlusion guard (phone in front of the face)", () => {
+  it("flags physiologically impossible features as face_blocked, not slouching", async () => {
+    const { assessDetectionQuality } = await import("../src/pose/poseQuality");
+    // A held phone drags the hallucinated eyes/ears toward its center: the
+    // apparent head shrinks to a fraction of normal size while shoulders stay
+    // put — shoulderCollapse explodes far past any human ratio.
+    const occluded = makePose({
+      NOSE: { x: 0.5, y: 0.52, z: -0.05, visibility: 0.8 },
+      LEFT_EAR: { x: 0.485, y: 0.5, z: 0, visibility: 0.75 },
+      RIGHT_EAR: { x: 0.515, y: 0.5, z: 0, visibility: 0.75 },
+      LEFT_EYE: { x: 0.49, y: 0.5, z: -0.04, visibility: 0.8 },
+      RIGHT_EYE: { x: 0.51, y: 0.5, z: -0.04, visibility: 0.8 },
+    });
+    const features = extractFeatures(occluded);
+    const quality = assessDetectionQuality(occluded, features);
+    expect(quality.usable).toBe(false);
+    expect(quality.reason).toBe("face_blocked");
+  });
+
+  it("keeps normal and hunched poses classifiable", async () => {
+    const { assessDetectionQuality } = await import("../src/pose/poseQuality");
+    for (const pose of [uprightPose(), hunchedPose()]) {
+      const q = assessDetectionQuality(pose, extractFeatures(pose));
+      expect(q.reason).not.toBe("face_blocked");
+      expect(q.usable).toBe(true);
+    }
+  });
+});
