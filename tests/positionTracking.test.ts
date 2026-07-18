@@ -68,6 +68,7 @@ const FAST: PositionMachineConfig = {
   switchSustainMs: 2000,
   minConfidence: 0.5,
   awayGraceMs: 2000,
+  transitionHoldMs: 30_000,
 };
 
 function classification(

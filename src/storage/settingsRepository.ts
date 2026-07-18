@@ -14,6 +14,11 @@ export interface SettingsData {
   readonly motivation: string;
   /** Behavioral focus areas chosen in onboarding (see profileOptions). */
   readonly focusAreas: readonly string[];
+  /**
+   * Desk-direction mapping: background shifting DOWN in frame = desk rising =
+   * standing. Auto-learned from corrections made shortly after a transition.
+   */
+  readonly backgroundDownMeansStanding: boolean;
   /** Spoken slouch alerts via the system voice. */
   readonly voiceEnabled: boolean;
   /** One spoken greeting on the first open of each day. */
@@ -40,6 +45,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
   // Default preserved from the original hand-tuned build; onboarding replaces it.
   motivation: "You want to be able to pick up Jack when you're older.",
   focusAreas: [],
+  backgroundDownMeansStanding: true,
   voiceEnabled: true,
   morningGreetingEnabled: true,
   sensitivity: "balanced",

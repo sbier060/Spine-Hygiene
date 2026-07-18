@@ -18,12 +18,19 @@ export interface PositionMachineConfig {
   readonly minConfidence: number;
   /** No person for this long → away. */
   readonly awayGraceMs: number;
+  /**
+   * After a detected desk transition, ignore automatic classification for this
+   * long — the transition is the stronger signal, and stale baselines must not
+   * immediately flip the state back.
+   */
+  readonly transitionHoldMs: number;
 }
 
 export const DEFAULT_POSITION_MACHINE_CONFIG: PositionMachineConfig = {
   switchSustainMs: 4000,
   minConfidence: 0.5,
   awayGraceMs: 20_000,
+  transitionHoldMs: 30_000,
 };
 
 export interface PositionInput {
@@ -45,6 +52,7 @@ export class PositionStateMachine {
   private candidateAccumMs = 0;
   private absentAccumMs = 0;
   private lastMs: number | null = null;
+  private holdUntilMs = 0;
 
   constructor(
     private readonly config: PositionMachineConfig = DEFAULT_POSITION_MACHINE_CONFIG,
@@ -79,7 +87,11 @@ export class PositionStateMachine {
     }
     this.absentAccumMs = 0;
 
-    if (
+    if (nowMs < this.holdUntilMs) {
+      // Recent desk transition: the transition IS the state; ignore the
+      // (possibly stale-baselined) static classifier for the hold period.
+      target = this.state;
+    } else if (
       classification.position !== "unknown" &&
       classification.confidence >= this.config.minConfidence
     ) {
@@ -110,6 +122,17 @@ export class PositionStateMachine {
   markManual(position: PositionState, nowMs: number): PositionStep {
     this.lastMs = nowMs;
     return this.commit(position, 1, "manual", nowMs);
+  }
+
+  /** Apply a detected desk transition: switch now and hold against the classifier. */
+  markTransition(
+    position: PositionState,
+    confidence: number,
+    nowMs: number,
+  ): PositionStep {
+    this.lastMs = nowMs;
+    this.holdUntilMs = nowMs + this.config.transitionHoldMs;
+    return this.commit(position, confidence, "transition", nowMs);
   }
 
   private switchImmediate(

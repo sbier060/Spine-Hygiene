@@ -49,6 +49,14 @@ import {
   type ReminderKind,
 } from "../position/durationTracker";
 import type { PositionEvent, PositionState } from "../position/positionTypes";
+import type { BackgroundMotionFeatures } from "../position/backgroundMotion";
+import {
+  TransitionDetector,
+  DEFAULT_TRANSITION_CONFIG,
+  type TransitionConfig,
+  type TransitionPhase,
+  type TransitionDirection,
+} from "../position/transitionDetector";
 
 export interface MonitoringInput {
   readonly nowMs: number;
@@ -59,6 +67,8 @@ export interface MonitoringInput {
   readonly standingPositionBaseline?: PositionBaseline | null;
   readonly paused: boolean;
   readonly inferenceMs: number;
+  /** Background displacement measured between this frame and the previous. */
+  readonly backgroundMotion?: BackgroundMotionFeatures | null;
 }
 
 export interface MonitoringResult {
@@ -84,6 +94,10 @@ export interface MonitoringResult {
   readonly positionEvent: PositionEvent | null;
   /** Rolling performance stats (developer mode). */
   readonly perf: PerfSnapshot;
+  /** Desk-transition tracking (developer overlay + mapping learning). */
+  readonly transitionPhase: TransitionPhase;
+  readonly transitionCumulativeDeltaY: number;
+  readonly backgroundMotion: BackgroundMotionFeatures | null;
 }
 
 export interface MonitoringDeps {
@@ -95,6 +109,13 @@ export interface MonitoringDeps {
   readonly positionMachineConfig?: PositionMachineConfig;
   readonly durationConfig?: DurationConfig;
   readonly classifyOptions?: ClassifyOptions;
+  readonly transitionConfig?: TransitionConfig;
+  /**
+   * Desk direction mapping, read live (a getter so learned corrections apply
+   * without rebuilding the controller): true = background moving down in frame
+   * means the desk is rising → the user is standing.
+   */
+  readonly getBackgroundDownMeansStanding?: () => boolean;
 }
 
 export class MonitoringController {
@@ -107,8 +128,13 @@ export class MonitoringController {
   private readonly duration: DurationTracker;
   private readonly classifyOptions: ClassifyOptions;
   private readonly perf = new PerformanceMonitor();
+  private readonly transitions: TransitionDetector;
+  private readonly getMapping: () => boolean;
   /** Timestamp of the last classified frame, for time-aware smoothing. */
   private lastClassifyMs: number | null = null;
+  /** Last completed desk transition (for correction-based mapping learning). */
+  private lastTransition: { direction: TransitionDirection; atMs: number } | null =
+    null;
 
   constructor(deps: MonitoringDeps = {}) {
     this.machine = new PostureStateMachine(
@@ -127,6 +153,30 @@ export class MonitoringController {
       deps.durationConfig ?? DEFAULT_DURATION_CONFIG,
     );
     this.classifyOptions = deps.classifyOptions ?? DEFAULT_CLASSIFY_OPTIONS;
+    this.transitions = new TransitionDetector(
+      deps.transitionConfig ?? DEFAULT_TRANSITION_CONFIG,
+    );
+    this.getMapping = deps.getBackgroundDownMeansStanding ?? (() => true);
+  }
+
+  /** Map a completed transition direction to a position via the learned mapping. */
+  private transitionPosition(direction: TransitionDirection): PositionState {
+    const downMeansStanding = this.getMapping();
+    return direction === "background_down"
+      ? downMeansStanding
+        ? "standing"
+        : "sitting"
+      : downMeansStanding
+        ? "sitting"
+        : "standing";
+  }
+
+  /** Last completed desk transition, if any (for mapping learning). */
+  get lastCompletedTransition(): {
+    direction: TransitionDirection;
+    atMs: number;
+  } | null {
+    return this.lastTransition;
   }
 
   ingest(input: MonitoringInput): MonitoringResult {
@@ -159,6 +209,25 @@ export class MonitoringController {
       present,
       paused,
     });
+
+    // Desk-transition detection runs on background motion; a completed
+    // transition is the strongest sit/stand signal and forces the position.
+    const motion = input.backgroundMotion ?? null;
+    const transitionStep = this.transitions.update({
+      nowMs,
+      motion,
+      present,
+    });
+    let transitionEvent: PositionEvent | null = null;
+    if (transitionStep.completed && !paused) {
+      const forced = this.transitionPosition(transitionStep.completed.direction);
+      this.lastTransition = {
+        direction: transitionStep.completed.direction,
+        atMs: nowMs,
+      };
+      const step = this.positionMachine.markTransition(forced, 0.9, nowMs);
+      transitionEvent = step.event ?? null;
+    }
 
     // Position tracking runs in parallel with posture.
     const positionFeatures = extractPositionFeatures(landmarks);
@@ -206,8 +275,11 @@ export class MonitoringController {
       positionConfidence: classification.confidence,
       durations: durationUpdate.snapshot,
       positionReminder: durationUpdate.reminder,
-      positionEvent: positionStep.event ?? null,
+      positionEvent: positionStep.event ?? transitionEvent,
       perf: this.perf.snapshot(nowMs),
+      transitionPhase: transitionStep.phase,
+      transitionCumulativeDeltaY: transitionStep.cumulativeDeltaY,
+      backgroundMotion: motion,
     };
   }
 
@@ -230,6 +302,8 @@ export class MonitoringController {
     this.machine.reset();
     this.presence.reset();
     this.ema.reset();
+    this.transitions.reset();
+    this.lastTransition = null;
     this.lastClassifyMs = null;
     this.positionMachine.reset();
     this.duration.reset();

@@ -6,7 +6,13 @@
 
 export type PositionState = "sitting" | "standing" | "away" | "unknown";
 
-export type PositionSource = "automatic" | "manual" | "calibration" | "system";
+export type PositionSource =
+  | "automatic"
+  | "manual"
+  | "calibration"
+  | "system"
+  /** Detected desk-height transition (background motion). */
+  | "transition";
 
 /** Output of the classifier for a single frame. */
 export interface PositionClassification {

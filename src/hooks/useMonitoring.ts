@@ -10,7 +10,13 @@
 import { useEffect, useRef } from "react";
 import type { Dispatch } from "react";
 import { CameraManager } from "../camera/cameraManager";
-import { captureFrameBitmap } from "../camera/frameSampler";
+import { captureFrameBitmap, captureGrayFrame } from "../camera/frameSampler";
+import {
+  computeBackgroundMotion,
+  personExclusionFromLandmarks,
+  type BackgroundMotionFeatures,
+  type GrayFrame,
+} from "../position/backgroundMotion";
 import { PoseEngine } from "../pose/poseLandmarker";
 import type { Landmark } from "../pose/landmarkTypes";
 import { extractPositionFeatures } from "../position/positionFeatures";
@@ -108,6 +114,12 @@ export function useMonitoring(
   const voiceRotationRef = useRef(0);
   const settingsRepoRef = useRef<SettingsRepository | null>(null);
   settingsRepoRef.current ??= new SettingsRepository();
+  // Previous grayscale frame for background-motion tracking, and the learned
+  // desk-direction mapping (read live by the controller).
+  const prevGrayRef = useRef<GrayFrame | null>(null);
+  const mappingRef = useRef<boolean | null>(null);
+  mappingRef.current ??=
+    settingsRepoRef.current.load().backgroundDownMeansStanding;
   const stickyStateRef = useRef(
     new StickyValue<PostureState>("good", STATUS_HOLD_MS, IMMEDIATE_STATES),
   );
@@ -127,6 +139,7 @@ export function useMonitoring(
     const controller = (controllerRef.current ??= new MonitoringController({
       machineConfig: configRef.current,
       scoreOptions: scoreOptionsRef.current,
+      getBackgroundDownMeansStanding: () => mappingRef.current ?? true,
     }));
     const notifier = (notifierRef.current ??= new NotificationService());
 
@@ -149,6 +162,9 @@ export function useMonitoring(
       const now = performance.now();
 
       if (pausedRef.current) {
+        // Camera is released while paused — a stale previous frame must never
+        // be compared against a post-resume frame.
+        prevGrayRef.current = null;
         const b = baselinesRef.current;
         const result = controller.ingest({
           nowMs: now,
@@ -190,6 +206,7 @@ export function useMonitoring(
         }
         dbg("camera started", started.value.width, "x", started.value.height);
         controller.setCameraResolution(started.value.width, started.value.height);
+        prevGrayRef.current = null;
       }
 
       // ALWAYS ensure the <video> is showing the active stream. On React's dev
@@ -232,6 +249,25 @@ export function useMonitoring(
         }
       }
 
+      // Background motion: compare this frame's downscaled luma against the
+      // previous one, excluding the region the user occupies. Detects the
+      // desk (and camera) physically moving — the strongest sit/stand signal.
+      let backgroundMotion: BackgroundMotionFeatures | null = null;
+      if (video) {
+        const gray = captureGrayFrame(video);
+        if (gray) {
+          const prev = prevGrayRef.current;
+          if (prev && prev.width === gray.width && prev.height === gray.height) {
+            backgroundMotion = computeBackgroundMotion(
+              prev,
+              gray,
+              personExclusionFromLandmarks(landmarks),
+            );
+          }
+          prevGrayRef.current = gray;
+        }
+      }
+
       const b = baselinesRef.current;
       const result = controller.ingest({
         nowMs: now,
@@ -241,6 +277,7 @@ export function useMonitoring(
         standingPositionBaseline: b.positionStanding,
         paused: false,
         inferenceMs,
+        backgroundMotion,
       });
       // Present a debounced state so the tray/screen don't flap on brief
       // movement; the raw state still drives notifications and scheduling.
@@ -410,7 +447,28 @@ export function useMonitoring(
   // that position's signature so classification becomes automatic afterward.
   useEffect(() => {
     if (!manualMark) return;
-    controllerRef.current?.markPosition(manualMark.position, performance.now());
+    const now = performance.now();
+    controllerRef.current?.markPosition(manualMark.position, now);
+    // Direction-mapping learning: a correction shortly after a desk transition
+    // tells us which background direction means standing on THIS setup.
+    const lastTransition = controllerRef.current?.lastCompletedTransition ?? null;
+    if (
+      lastTransition &&
+      now - lastTransition.atMs < 30_000 &&
+      (manualMark.position === "sitting" || manualMark.position === "standing")
+    ) {
+      const downMeansStanding =
+        lastTransition.direction === "background_down"
+          ? manualMark.position === "standing"
+          : manualMark.position === "sitting";
+      if (downMeansStanding !== mappingRef.current) {
+        mappingRef.current = downMeansStanding;
+        settingsRepoRef.current?.update({
+          backgroundDownMeansStanding: downMeansStanding,
+        });
+        dbg("learned desk mapping: backgroundDownMeansStanding =", downMeansStanding);
+      }
+    }
     if (manualMark.position === "sitting" || manualMark.position === "standing") {
       learnRef.current = {
         position: manualMark.position,

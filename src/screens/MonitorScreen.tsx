@@ -160,6 +160,29 @@ export function MonitorScreen(): JSX.Element {
               <td>Camera resolution</td>
               <td>{monitor.perf.cameraResolution ?? "—"}</td>
             </tr>
+            <tr>
+              <td>Desk transition</td>
+              <td>
+                {monitor.transitionPhase} (
+                {fmt(monitor.transitionCumulativeDeltaY, 1)} px)
+              </td>
+            </tr>
+            <tr>
+              <td>Background Δx / Δy</td>
+              <td>
+                {monitor.backgroundMotion
+                  ? `${fmt(monitor.backgroundMotion.medianDeltaX, 1)} / ${fmt(monitor.backgroundMotion.medianDeltaY, 1)} px`
+                  : "—"}
+              </td>
+            </tr>
+            <tr>
+              <td>BG coherence</td>
+              <td>
+                {monitor.backgroundMotion
+                  ? `${fmt(monitor.backgroundMotion.verticalCoherence, 2)} · ${String(monitor.backgroundMotion.validPointCount)} pts`
+                  : "—"}
+              </td>
+            </tr>
           </tbody>
         </table>
       )}

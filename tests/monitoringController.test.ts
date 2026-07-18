@@ -221,3 +221,62 @@ describe("MonitoringController", () => {
     expect(recovered.state).toBe("good");
   });
 });
+
+describe("desk transition integration", () => {
+  const moving = (dy: number) => ({
+    trackedPointCount: 30,
+    validPointCount: 24,
+    medianDeltaX: 0,
+    medianDeltaY: dy,
+    verticalCoherence: 0.9,
+    backgroundStable: false,
+    likelyCameraMotion: true,
+  });
+  const stable = {
+    trackedPointCount: 30,
+    validPointCount: 24,
+    medianDeltaX: 0,
+    medianDeltaY: 0,
+    verticalCoherence: 0.9,
+    backgroundStable: true,
+    likelyCameraMotion: false,
+  };
+
+  it("a completed desk-rise forces standing and holds against the classifier", () => {
+    const c = new MonitoringController();
+    let t = 0;
+    const feed = (motion: ReturnType<typeof moving>, n: number, stepMs = 400) => {
+      let r = null as ReturnType<MonitoringController["ingest"]> | null;
+      for (let i = 0; i < n; i++) {
+        t += stepMs;
+        r = c.ingest({
+          nowMs: t,
+          landmarks: uprightPose(),
+          baseline,
+          sittingPositionBaseline: sitPositionBaseline,
+          standingPositionBaseline: standPositionBaseline,
+          paused: false,
+          inferenceMs: 5,
+          backgroundMotion: motion,
+        });
+      }
+      return r!;
+    };
+
+    // Warm up: present + classified as sitting (upright pose matches the
+    // sitting baseline). Long enough for the position machine to settle.
+    let r = feed(stable, 16, 800);
+    expect(r.position).toBe("sitting");
+
+    // Desk rises: sustained coherent downward background shift, then settle.
+    feed(moving(4), 6);
+    r = feed(stable, 3, 1000);
+    expect(r.position).toBe("standing");
+    expect(c.lastCompletedTransition?.direction).toBe("background_down");
+
+    // The static classifier still matches the sitting baseline, but the
+    // transition hold keeps the state at standing.
+    r = feed(stable, 10, 400);
+    expect(r.position).toBe("standing");
+  });
+});
