@@ -172,6 +172,11 @@ export function useMonitoring(
   // what "I'm not slouching" must learn from.
   const alertPoseRef = useRef<PostureFeatures | null>(null);
   const alertPoseScoreRef = useRef(0);
+  // Whether the app window is hidden (closed to the menu bar). While hidden the
+  // WebView is throttled, so camera-based presence can't be trusted.
+  const documentHiddenRef = useRef(
+    typeof document !== "undefined" ? document.hidden : false,
+  );
   const stickyStateRef = useRef(
     new StickyValue<PostureState>("good", STATUS_HOLD_MS, IMMEDIATE_STATES),
   );
@@ -298,6 +303,21 @@ export function useMonitoring(
           if (isSpineIqError(err) && err.type === "model_load_failed") {
             dispatch({ type: "set_error", error: err });
           }
+        }
+      }
+
+      // Window hidden (closed to the menu bar) + no frame: macOS throttles the
+      // backgrounded WebView, so an empty frame here is a capture gap, NOT you
+      // leaving. Decide presence by input activity instead — if you're typing,
+      // hold your status rather than drifting to Away. (Hidden + idle falls
+      // through and takes the normal away path, which is genuinely correct.)
+      if (documentHiddenRef.current && landmarks.length === 0) {
+        const idle = await systemIdleSeconds();
+        if (cancelled) return;
+        if (idle !== null && idle < STANDBY_MIN_INPUT_IDLE_S) {
+          dbg("hidden + no frame but input active → holding state (not away)");
+          void scheduleNext(STANDBY_POLL_MS);
+          return;
         }
       }
 
@@ -629,6 +649,18 @@ export function useMonitoring(
     const video = videoRef.current;
     if (video) video.srcObject = null;
   }, [running, videoRef]);
+
+  // Track window visibility so the loop can distinguish "you left" from
+  // "we're throttled because the window is hidden".
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVis = (): void => {
+      documentHiddenRef.current = document.hidden;
+    };
+    document.addEventListener("visibilitychange", onVis);
+    onVis();
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   // "I fixed my posture": end the slouch episode everywhere at once — state
   // machine, sticky display, window pin, and the native alert flag.
