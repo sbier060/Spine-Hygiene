@@ -704,15 +704,25 @@ export function useMonitoring(
         ? (alertPoseRef.current ?? liveFeatures)
         : liveFeatures;
     const last = lastResultRef.current;
+    const verdict =
+      postureFeedback.kind === "not_slouching"
+        ? "false_positive"
+        : postureFeedback.kind === "actually_slouching"
+          ? "false_negative"
+          : postureFeedback.kind === "confirmed"
+            ? "confirmed"
+            : "misread";
     void historyRef.current.recordPostureFeedback({
-      verdict:
-        postureFeedback.kind === "not_slouching"
-          ? "false_positive"
-          : "false_negative",
+      verdict,
       state: last?.state ?? "unknown",
       score: last?.score ?? 0,
       featuresJson: features ? JSON.stringify(features) : null,
     });
+    // "Right" and unclassifiable misreads are logged only — nothing to correct.
+    if (postureFeedback.kind === "confirmed" || postureFeedback.kind === "misread") {
+      dbg("feedback logged:", verdict);
+      return;
+    }
 
     const base = baselinesRef.current.posture;
     if (postureFeedback.kind === "not_slouching") {

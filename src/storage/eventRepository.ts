@@ -80,6 +80,17 @@ export class EventRepository {
     );
   }
 
+  /** Feedback verdict counts since `sinceMs` — powers the accuracy readout. */
+  async feedbackCounts(
+    sinceMs: number,
+  ): Promise<{ verdict: string; n: number }[]> {
+    return this.db.select<{ verdict: string; n: number }>(
+      `SELECT verdict, COUNT(*) AS n FROM posture_feedback
+       WHERE created_at >= ? GROUP BY verdict`,
+      [sinceMs],
+    );
+  }
+
   async deleteAll(): Promise<void> {
     await this.db.execute("DELETE FROM position_events");
     await this.db.execute("DELETE FROM posture_events");

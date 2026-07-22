@@ -230,9 +230,49 @@ export class HistoryStore {
   }
 
   /** Save a calibration for the ACTIVE place. */
+  /**
+   * Detection accuracy from the user's own ratings. `falseAlarms` (flagged a
+   * slouch that wasn't) vs `missed` (failed to flag a real slouch) says WHICH
+   * way the model is failing, which is what tuning needs.
+   */
+  async loadFeedbackStats(sinceMs = 0): Promise<{
+    total: number;
+    correct: number;
+    falseAlarms: number;
+    missed: number;
+    accuracy: number | null;
+  }> {
+    const empty = {
+      total: 0,
+      correct: 0,
+      falseAlarms: 0,
+      missed: 0,
+      accuracy: null,
+    };
+    if (!this.events) return empty;
+    const rows = await this.events.feedbackCounts(sinceMs);
+    const count = (v: string): number =>
+      rows.find((r) => r.verdict === v)?.n ?? 0;
+    const correct = count("confirmed");
+    const falseAlarms = count("false_positive");
+    const missed = count("false_negative");
+    const total = correct + falseAlarms + missed + count("misread");
+    return {
+      total,
+      correct,
+      falseAlarms,
+      missed,
+      accuracy: total === 0 ? null : correct / total,
+    };
+  }
+
   /** Record one posture-feedback verdict (labeled sample for future models). */
   async recordPostureFeedback(entry: {
-    readonly verdict: "false_positive" | "false_negative" | "confirmed";
+    readonly verdict:
+      | "false_positive"
+      | "false_negative"
+      | "confirmed"
+      | "misread";
     readonly state: string;
     readonly score: number;
     readonly featuresJson: string | null;

@@ -34,6 +34,16 @@ export interface ManualMark {
   readonly nonce: number;
 }
 
+/**
+ * A rating of the CURRENT call. "confirmed" = the app is right; the others say
+ * which way it's wrong and drive the matching correction.
+ */
+export type PostureFeedbackKind =
+  | "confirmed"
+  | "not_slouching"
+  | "actually_slouching"
+  | "misread";
+
 /** A distinct spot the user works from (desk, comfy chair, couch). */
 export interface PlaceInfo {
   readonly id: number;
@@ -77,7 +87,7 @@ export interface AppState {
   readonly slouchAck: number;
   /** Pending detection-feedback verdict (consumed by the monitoring hook). */
   readonly postureFeedback: {
-    readonly kind: "not_slouching" | "actually_slouching";
+    readonly kind: PostureFeedbackKind;
     readonly nonce: number;
   } | null;
   /** The scene doesn't match any saved place — offer the new-spot flow. */
@@ -123,10 +133,7 @@ export type AppAction =
   | { type: "set_places"; places: readonly PlaceInfo[] }
   | { type: "set_active_place"; place: PlaceInfo }
   | { type: "acknowledge_slouch" }
-  | {
-      type: "give_posture_feedback";
-      kind: "not_slouching" | "actually_slouching";
-    }
+  | { type: "give_posture_feedback"; kind: PostureFeedbackKind }
   | { type: "set_new_place_hint"; value: boolean }
   | { type: "begin_place_setup" }
   | { type: "exit_place_setup" }

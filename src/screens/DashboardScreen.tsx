@@ -88,11 +88,21 @@ export function DashboardScreen(): JSX.Element {
     });
   };
 
+  const [accuracy, setAccuracy] = useState<{
+    total: number;
+    correct: number;
+    falseAlarms: number;
+    missed: number;
+    accuracy: number | null;
+  } | null>(null);
+  const [rated, setRated] = useState<"right" | "wrong" | null>(null);
+
   const reload = useCallback(() => {
     const now = Date.now();
     void history.loadTodayStats(now).then(setStats);
     void history.loadDailyStats(now).then(setDaily);
     void history.loadTimeline(now).then(setTimeline);
+    void history.loadFeedbackStats().then(setAccuracy);
   }, [history]);
 
   useEffect(() => {
@@ -157,6 +167,64 @@ export function DashboardScreen(): JSX.Element {
           )}
         </div>
       </div>
+
+      {running && monitor && (
+        <div className="card rate-card">
+          <div className="rate-head">
+            <span className="rate-label">Right now it’s calling this</span>
+            <span className={`band band-${monitor.state}`}>
+              {statusHeadline(monitor.state, monitor.position)}
+            </span>
+          </div>
+          <div className="pause-controls">
+            <button
+              className={rated === "right" ? "chip-option selected" : ""}
+              onClick={() => {
+                dispatch({ type: "give_posture_feedback", kind: "confirmed" });
+                setRated("right");
+                setTimeout(() => setRated(null), 1500);
+              }}
+            >
+              Right
+            </button>
+            <button
+              className={rated === "wrong" ? "chip-option selected" : ""}
+              onClick={() => {
+                // "Wrong" means the opposite of whatever it's claiming — and
+                // that drives the matching correction.
+                const s = monitor.state;
+                const kind =
+                  s === "good" || s === "drifting"
+                    ? "actually_slouching"
+                    : s === "poor_candidate" ||
+                        s === "poor_confirmed" ||
+                        s === "cooldown"
+                      ? "not_slouching"
+                      : "misread";
+                dispatch({ type: "give_posture_feedback", kind });
+                setRated("wrong");
+                setTimeout(() => setRated(null), 1500);
+                reload();
+              }}
+            >
+              Wrong
+            </button>
+          </div>
+          {accuracy && accuracy.total > 0 ? (
+            <span className="hint">
+              Accuracy {accuracy.accuracy === null ? "—" : `${String(Math.round(accuracy.accuracy * 100))}%`}{" "}
+              over {accuracy.total} rating{accuracy.total === 1 ? "" : "s"} ·{" "}
+              {accuracy.falseAlarms} false alarm
+              {accuracy.falseAlarms === 1 ? "" : "s"} · {accuracy.missed} missed
+            </span>
+          ) : (
+            <span className="hint">
+              Rate the call whenever you notice it — every rating is stored and
+              tunes the detection.
+            </span>
+          )}
+        </div>
+      )}
 
       {state.places.length > 0 && (
         <>

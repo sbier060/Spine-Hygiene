@@ -773,6 +773,33 @@ select:focus-visible {
   gap: 10px;
 }
 
+.rate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rate-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.rate-card .band {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
 /* ---- New-spot banner --------------------------------------------------------- */
 .new-place-banner {
   position: fixed;

@@ -103,3 +103,32 @@ describe("CalibrationRepository", () => {
     expect(profile?.postureBaseline).toBeNull();
   });
 });
+
+describe("feedback accuracy stats", () => {
+  it("splits ratings into accuracy, false alarms, and missed slouches", async () => {
+    const { HistoryStore } = await import("../src/storage/historyStore");
+    const db = new FakeDatabase();
+    db.selectRows = [
+      { verdict: "confirmed", n: 7 },
+      { verdict: "false_positive", n: 2 },
+      { verdict: "false_negative", n: 1 },
+    ];
+    const store = new HistoryStore(db);
+    const stats = await store.loadFeedbackStats();
+    expect(stats.total).toBe(10);
+    expect(stats.correct).toBe(7);
+    expect(stats.falseAlarms).toBe(2);
+    expect(stats.missed).toBe(1);
+    expect(stats.accuracy).toBeCloseTo(0.7, 5);
+  });
+
+  it("reports null accuracy before any ratings exist", async () => {
+    const { HistoryStore } = await import("../src/storage/historyStore");
+    const db = new FakeDatabase();
+    db.selectRows = [];
+    const store = new HistoryStore(db);
+    const stats = await store.loadFeedbackStats();
+    expect(stats.total).toBe(0);
+    expect(stats.accuracy).toBeNull();
+  });
+});
